@@ -5,9 +5,9 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="financial-analysis",
-    version="0.1.0",
+    version="0.2.0",
     author="Financial Analysis Team",
-    description="Ben Graham value investing analysis and report generator",
+    description="Fundamental value analysis and report generator",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/yourusername/financial-analysis",
@@ -25,15 +25,12 @@ setup(
     install_requires=[
         "click>=8.1.0",
         "rich>=13.0.0",
-        "aiohttp>=3.9.0",
-        "asyncio-throttle>=1.0.0",
         "pandas>=2.0.0",
         "numpy>=1.24.0",
         "yfinance>=0.2.0",
         "plotly>=5.18.0",
         "jinja2>=3.1.0",
         "sqlalchemy>=2.0.0",
-        "aiocache>=0.12.0",
         "python-dotenv>=1.0.0",
         "pyyaml>=6.0",
         "requests>=2.31.0",

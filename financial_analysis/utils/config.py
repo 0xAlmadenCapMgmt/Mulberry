@@ -29,8 +29,7 @@ class Config:
             # Try loading from current directory
             load_dotenv()
 
-        # API Keys
-        self.alpha_vantage_api_key = os.getenv('ALPHA_VANTAGE_API_KEY', '')
+        # Optional legacy API keys (not required for core analysis)
         self.fmp_api_key = os.getenv('FMP_API_KEY', '')
         self.sec_user_agent = os.getenv('SEC_USER_AGENT', 'FinancialAnalysis contact@example.com')
 
@@ -39,10 +38,10 @@ class Config:
         self.cache_ttl_fundamentals = int(os.getenv('CACHE_TTL_FUNDAMENTALS', '86400'))
         self.cache_ttl_filings = int(os.getenv('CACHE_TTL_FILINGS', '604800'))
 
-        # Rate limits (requests per minute)
-        self.alpha_vantage_rate_limit = int(os.getenv('ALPHA_VANTAGE_RATE_LIMIT', '5'))
-        self.fmp_rate_limit = int(os.getenv('FMP_RATE_LIMIT', '300'))
-        self.sec_rate_limit = int(os.getenv('SEC_RATE_LIMIT', '10'))
+        # Valuation parameters
+        # AAA corporate bond yield used in the growth-adjusted earnings formula.
+        # Defaults to 5.0% — override with AAA_BOND_YIELD in .env (e.g. 4.5).
+        self.aaa_bond_yield = float(os.getenv('AAA_BOND_YIELD', '5.0')) / 100
 
         # Paths
         self.project_root = project_root
@@ -58,11 +57,8 @@ class Config:
         """Validate configuration and return (is_valid, error_messages)"""
         errors = []
 
-        if not self.alpha_vantage_api_key:
-            errors.append("ALPHA_VANTAGE_API_KEY not set in .env file")
-
-        if not self.sec_user_agent or 'example.com' in self.sec_user_agent:
-            errors.append("SEC_USER_AGENT must be set with real contact email")
+        if not self.output_dir.exists():
+            errors.append(f"Output directory missing: {self.output_dir}")
 
         return (len(errors) == 0, errors)
 

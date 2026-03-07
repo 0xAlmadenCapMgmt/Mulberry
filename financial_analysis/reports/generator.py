@@ -1,10 +1,12 @@
-"""Main report generator engine"""
+"""Main report generation engine"""
 
 import asyncio
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
+
 import jinja2
+import pandas as pd
 
 from ..core.stock_analysis import StockAnalyzer
 from ..visualization.charts import ChartBuilder
@@ -16,45 +18,47 @@ from ..utils.formatters import format_currency, format_percent
 logger = get_logger(__name__)
 
 
+def _format_large(value) -> str:
+    """Format large dollar values with T/B/M suffix."""
+    try:
+        v = float(value)
+        if v >= 1_000_000_000_000:
+            return f"${v / 1_000_000_000_000:.2f}T"
+        elif v >= 1_000_000_000:
+            return f"${v / 1_000_000_000:.2f}B"
+        elif v >= 1_000_000:
+            return f"${v / 1_000_000:.2f}M"
+        return f"${v:,.0f}"
+    except Exception:
+        return str(value)
+
+
 class ReportGenerator:
     """
-    Main report generation engine
+    Main report generation engine.
 
-    Generates professional HTML reports with:
-    - Graham valuation analysis
-    - Interactive Plotly charts
-    - Defensive/enterprising checklists
-    - Financial metrics and trends
+    Generates professional HTML reports with interactive Plotly charts,
+    valuation analysis, and financial health scorecards.
     """
 
     def __init__(self, cache_manager: Optional[CacheManager] = None):
-        """
-        Initialize report generator
-
-        Args:
-            cache_manager: Optional cache manager
-        """
         self.cache = cache_manager or CacheManager(str(config.cache_db_path))
         self.analyzer = StockAnalyzer(self.cache)
         self.chart_builder = ChartBuilder()
 
-        # Setup Jinja2 environment
         self.jinja_env = jinja2.Environment(
             loader=jinja2.FileSystemLoader(str(config.templates_dir)),
-            autoescape=jinja2.select_autoescape(['html', 'xml'])
+            autoescape=jinja2.select_autoescape(["html", "xml"]),
         )
+        self.jinja_env.filters["currency"] = format_currency
+        self.jinja_env.filters["percent"] = format_percent
+        self.jinja_env.filters["format_large"] = _format_large
 
-        # Add custom filters
-        self.jinja_env.filters['currency'] = format_currency
-        self.jinja_env.filters['percent'] = format_percent
-
-    async def generate_graham_report(
-        self,
-        symbol: str,
-        output_path: Optional[str] = None
+    async def generate_report(
+        self, symbol: str, output_path: Optional[str] = None
     ) -> str:
         """
-        Generate comprehensive Graham valuation report
+        Generate a comprehensive fundamental analysis HTML report.
 
         Args:
             symbol: Stock ticker symbol
@@ -63,213 +67,240 @@ class ReportGenerator:
         Returns:
             Path to generated HTML report
         """
-        logger.info(f"Generating Graham report for {symbol}")
+        logger.info(f"Generating report for {symbol}")
 
-        try:
-            # Perform analysis
-            analysis = await self.analyzer.analyze(symbol)
+        analysis = await self.analyzer.analyze(symbol)
 
-            # Extract data
-            valuation = analysis['valuation']
-            quote = analysis['quote']
-            overview = analysis['overview']
-            margins = valuation['margins_of_safety']
+        valuation = analysis["valuation"]
+        margins = valuation["margins_of_safety"]
+        company_info = analysis["company_info"]
+        metrics = analysis["metrics"]
 
-            # Generate charts
-            logger.info("Generating charts...")
+        # --- Charts ---
+        valuation_chart = self.chart_builder.create_valuation_chart(
+            valuations={
+                "graham_number": valuation["graham_number"],
+                "ncav_per_share": valuation["ncav_per_share"],
+                "normalized_value": valuation["normalized_value"],
+                "dividend_adjusted_value": valuation["dividend_adjusted_value"],
+            },
+            current_price=analysis["current_price"],
+            symbol=symbol.upper(),
+        )
 
-            valuation_chart = self.chart_builder.create_graham_valuation_chart(
-                valuations={
-                    'graham_number': valuation['graham_number'],
-                    'ncav_per_share': valuation['ncav_per_share'],
-                    'normalized_value': valuation['normalized_value'],
-                    'dividend_adjusted_value': valuation['dividend_adjusted_value']
-                },
-                current_price=analysis['current_price'],
-                symbol=symbol.upper()
+        margin_gauge = self.chart_builder.create_margin_of_safety_gauge(
+            margin=margins["average"],
+            symbol=symbol.upper(),
+        )
+
+        health_chart = self.chart_builder.create_health_scorecard_chart(
+            checklist=analysis["defensive_checklist"],
+            symbol=symbol.upper(),
+        )
+
+        # Price history from Yahoo Finance (already in analysis result)
+        price_chart = None
+        history_df = analysis.get("history")
+        if isinstance(history_df, pd.DataFrame) and not history_df.empty:
+            price_chart = self.chart_builder.create_price_history_chart(
+                dates=[str(d.date()) for d in history_df.index],
+                prices=history_df["Close"].tolist(),
+                symbol=symbol.upper(),
+                intrinsic_value=valuation["graham_number"],
             )
 
-            margin_gauge = self.chart_builder.create_margin_of_safety_gauge(
-                margin=margins['average'],
-                symbol=symbol.upper()
+        # Financial trends
+        financial_trends_chart = None
+        annual_income = analysis["financial_statements"]["income"].get("annual", [])
+        if annual_income:
+            financial_trends_chart = self.chart_builder.create_financial_trends_chart(
+                income_data=annual_income[:10],
+                symbol=symbol.upper(),
             )
 
-            defensive_chart = self.chart_builder.create_defensive_checklist_chart(
-                checklist=analysis['defensive_checklist'],
-                symbol=symbol.upper()
+        # Table HTML
+        health_table = self._format_health_table(analysis["defensive_checklist"])
+        opportunities_table = self._format_opportunities_table(
+            analysis["enterprising_checklist"]
+        )
+
+        # Health score label
+        summary = analysis["defensive_checklist"].get("summary", {})
+        health_score = f"{summary.get('passed', 0)}/{summary.get('total', 8)}"
+
+        context = {
+            "symbol": symbol.upper(),
+            "company_name": company_info.get("name", symbol.upper()),
+            "sector": company_info.get("sector", ""),
+            "industry": company_info.get("industry", ""),
+            "generation_time": datetime.now().strftime("%B %d, %Y"),
+            "current_price": analysis["current_price"],
+            "price_change_pct": analysis.get("price_change_pct", 0),
+            "market_cap": metrics.get("market_cap", 0),
+            "pe_ratio": metrics.get("pe_ratio", 0),
+            "pb_ratio": metrics.get("pb_ratio", 0),
+            "beta": metrics.get("beta", 0),
+            "dividend_yield": metrics.get("dividend_yield", 0),
+            # Valuation
+            "graham_number": valuation["graham_number"],
+            "ncav_per_share": valuation["ncav_per_share"],
+            "ncav_buy_price": valuation["ncav_per_share"] * 0.67,
+            "normalized_value": valuation["normalized_value"],
+            "dividend_adjusted_value": valuation["dividend_adjusted_value"],
+            "avg_intrinsic_value": valuation["avg_intrinsic_value"],
+            "margin_of_safety": margins["average"],
+            "mos_graham": margins["graham"],
+            "mos_ncav": margins["ncav"],
+            "mos_normalized": margins["normalized"],
+            "mos_dividend": margins["dividend_adjusted"],
+            "recommendation": analysis["recommendation"],
+            # Metrics
+            "eps": metrics.get("eps", 0),
+            "book_value": metrics.get("book_value", 0),
+            "current_ratio": metrics.get("current_ratio", 0),
+            "debt_equity": metrics.get("debt_equity", 0),
+            "health_score": health_score,
+            # Charts (HTML strings)
+            "valuation_chart": valuation_chart.to_html(
+                include_plotlyjs="cdn", div_id="valuation_chart", full_html=False
+            ),
+            "margin_gauge": margin_gauge.to_html(
+                include_plotlyjs=False, div_id="margin_gauge", full_html=False
+            ),
+            "health_chart": health_chart.to_html(
+                include_plotlyjs=False, div_id="health_chart", full_html=False
+            ),
+            "price_chart": price_chart.to_html(
+                include_plotlyjs=False, div_id="price_chart", full_html=False
             )
+            if price_chart
+            else None,
+            "financial_trends_chart": financial_trends_chart.to_html(
+                include_plotlyjs=False, div_id="trends_chart", full_html=False
+            )
+            if financial_trends_chart
+            else None,
+            # Tables
+            "health_table": health_table,
+            "opportunities_table": opportunities_table,
+        }
 
-            # Price history chart (if time series data available)
-            price_chart = None
-            try:
-                time_series = await self.analyzer.alpha_vantage.get_time_series(symbol, outputsize='compact')
-                price_chart = self.chart_builder.create_price_history_chart(
-                    dates=time_series['dates'][:90],  # Last 90 days
-                    prices=time_series['prices'][:90],
-                    symbol=symbol.upper(),
-                    graham_number=valuation['graham_number']
-                )
-            except Exception as e:
-                logger.warning(f"Could not generate price chart: {e}")
+        template = self.jinja_env.get_template("analysis.html")
+        html = template.render(**context)
 
-            # Financial trends chart
-            financial_trends_chart = None
-            if analysis['financial_statements']['income'].get('annual'):
-                financial_trends_chart = self.chart_builder.create_financial_trends_chart(
-                    income_data=analysis['financial_statements']['income']['annual'][:10],
-                    symbol=symbol.upper()
-                )
+        if output_path is None:
+            filename = (
+                f"analysis_{symbol.upper()}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
+            )
+            output_path = config.output_dir / filename
 
-            # Generate defensive checklist table
-            defensive_table = self._format_defensive_table(analysis['defensive_checklist'])
+        output_path = Path(output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
 
-            # Generate enterprising table
-            enterprising_table = self._format_enterprising_table(analysis['enterprising_checklist'])
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(html)
 
-            # Prepare template context
-            context = {
-                'symbol': symbol.upper(),
-                'company_name': overview.get('Name', symbol.upper()),
-                'generation_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                'current_price': analysis['current_price'],
-                'graham_number': valuation['graham_number'],
-                'ncav_per_share': valuation['ncav_per_share'],
-                'normalized_value': valuation['normalized_value'],
-                'dividend_adjusted_value': valuation['dividend_adjusted_value'],
-                'avg_intrinsic_value': valuation['avg_intrinsic_value'],
-                'margin_of_safety': margins['average'],
-                'mos_graham': margins['graham'],
-                'mos_ncav': margins['ncav'],
-                'mos_normalized': margins['normalized'],
-                'mos_dividend': margins['dividend_adjusted'],
-                'recommendation': analysis['recommendation'],
-                'eps': float(overview.get('EPS', 0)),
-                'book_value': float(overview.get('BookValue', 0)),
-                'pe_ratio': float(overview.get('PERatio', 0)),
-                'pb_ratio': float(overview.get('PriceToBookRatio', 0)),
-                'current_ratio': analysis['metrics']['current_ratio'],
-                'debt_equity': analysis['metrics']['debt_equity'],
-                'valuation_chart': valuation_chart.to_html(include_plotlyjs='cdn', div_id='valuation_chart'),
-                'margin_gauge': margin_gauge.to_html(include_plotlyjs=False, div_id='margin_gauge'),
-                'defensive_chart': defensive_chart.to_html(include_plotlyjs=False, div_id='defensive_chart'),
-                'defensive_table': defensive_table,
-                'enterprising_table': enterprising_table,
-                'price_chart': price_chart.to_html(include_plotlyjs=False, div_id='price_chart') if price_chart else None,
-                'financial_trends_chart': financial_trends_chart.to_html(include_plotlyjs=False, div_id='trends_chart') if financial_trends_chart else None
-            }
+        logger.info(f"Report saved: {output_path}")
+        return str(output_path)
 
-            # Render template
-            template = self.jinja_env.get_template('graham_analysis.html')
-            html = template.render(**context)
+    # Legacy alias
+    async def generate_graham_report(self, symbol: str, output_path: Optional[str] = None) -> str:
+        return await self.generate_report(symbol, output_path)
 
-            # Save to file
-            if output_path is None:
-                filename = f"graham_{symbol.upper()}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
-                output_path = config.output_dir / filename
+    # ------------------------------------------------------------------
+    # Table formatters
+    # ------------------------------------------------------------------
 
-            output_path = Path(output_path)
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-
-            with open(output_path, 'w', encoding='utf-8') as f:
-                f.write(html)
-
-            logger.info(f"Report generated successfully: {output_path}")
-            return str(output_path)
-
-        except Exception as e:
-            logger.error(f"Report generation failed: {e}")
-            raise Exception(f"Failed to generate report: {e}")
-
-        finally:
-            await self.analyzer.alpha_vantage.close()
-
-    def _format_defensive_table(self, checklist: dict) -> str:
-        """Format defensive investor checklist as HTML table"""
-        html = '<table>'
-        html += '<thead><tr><th>Criterion</th><th>Target</th><th>Actual</th><th>Result</th></tr></thead>'
-        html += '<tbody>'
-
+    def _format_health_table(self, checklist: dict) -> str:
+        rows = ""
         for key, result in checklist.items():
-            if key == 'summary':
+            if key == "summary":
                 continue
+            passed = result.get("pass", False)
+            value = result.get("value", "")
+            target = result.get("target", "")
+            desc = result.get("description", "")
 
-            passed = result.get('pass', False)
-            value = result.get('value', '')
-            target = result.get('target', '')
-            desc = result.get('description', '')
-
-            # Format value
             if isinstance(value, float):
-                if value > 1000000:
-                    value_str = format_currency(value)
+                if value >= 1_000_000_000:
+                    value_str = _format_large(value)
                 else:
                     value_str = f"{value:.2f}"
             else:
                 value_str = str(value)
 
-            status = '<span class="pass">✓ PASS</span>' if passed else '<span class="fail">✗ FAIL</span>'
+            badge = (
+                '<span class="badge badge-pass">Pass</span>'
+                if passed
+                else '<span class="badge badge-fail">Fail</span>'
+            )
+            rows += (
+                f"<tr>"
+                f"<td><strong>{desc}</strong></td>"
+                f'<td style="font-family:monospace;font-size:12px;">{target}</td>'
+                f"<td>{value_str}</td>"
+                f"<td>{badge}</td>"
+                f"</tr>"
+            )
 
-            html += f'<tr>'
-            html += f'<td><strong>{desc}</strong></td>'
-            html += f'<td>{target}</td>'
-            html += f'<td>{value_str}</td>'
-            html += f'<td>{status}</td>'
-            html += f'</tr>'
+        summary = checklist.get("summary", {})
+        passed_count = summary.get("passed", 0)
+        total = summary.get("total", 8)
+        rate = format_percent(summary.get("pass_rate", 0))
 
-        # Summary row
-        summary = checklist.get('summary', {})
-        html += f'<tr style="background: #f8f9fa; font-weight: bold;">'
-        html += f'<td colspan="3">Overall Score</td>'
-        html += f'<td>{summary.get("passed", 0)}/{summary.get("total", 8)} Criteria Met '
-        html += f'({format_percent(summary.get("pass_rate", 0))})</td>'
-        html += f'</tr>'
+        return (
+            '<table class="data-table">'
+            "<thead><tr><th>Criterion</th><th>Target</th><th>Actual</th><th>Result</th></tr></thead>"
+            f"<tbody>{rows}</tbody>"
+            f'<tfoot><tr><td colspan="3"><strong>Financial Health Score</strong></td>'
+            f"<td><strong>{passed_count}/{total}</strong> criteria met ({rate})</td></tr></tfoot>"
+            "</table>"
+        )
 
-        html += '</tbody></table>'
-        return html
-
-    def _format_enterprising_table(self, checklist: dict) -> str:
-        """Format enterprising investor assessment as HTML table"""
-        html = '<table>'
-        html += '<thead><tr><th>Opportunity Type</th><th>Present</th><th>Details</th></tr></thead>'
-        html += '<tbody>'
-
+    def _format_opportunities_table(self, checklist: dict) -> str:
+        rows = ""
         for key, result in checklist.items():
-            if key == 'summary':
+            if key == "summary":
                 continue
-
-            opportunity = result.get('opportunity', False)
-            desc = result.get('description', '')
-
-            # Build details string
+            opportunity = result.get("opportunity", False)
+            desc = result.get("description", "")
             details = []
             for k, v in result.items():
-                if k not in ['opportunity', 'description']:
-                    if isinstance(v, float):
-                        if abs(v) > 100:
-                            details.append(f"{k}: {format_currency(v)}")
-                        elif k in ['discount', 'price_position', 'growth']:
-                            details.append(f"{k}: {format_percent(v)}")
-                        else:
-                            details.append(f"{k}: {v:.2f}")
+                if k in ("opportunity", "description"):
+                    continue
+                if isinstance(v, float):
+                    if abs(v) > 100_000:
+                        details.append(f"{k}: {format_currency(v)}")
+                    elif k in ("discount", "price_position", "growth"):
+                        details.append(f"{k}: {format_percent(v)}")
                     else:
-                        details.append(f"{k}: {v}")
+                        details.append(f"{k}: {v:.2f}")
+                else:
+                    details.append(f"{k}: {v}")
 
-            status = '<span class="pass">✓ YES</span>' if opportunity else '<span>✗ NO</span>'
-            details_str = '<br>'.join(details)
+            badge = (
+                '<span class="badge badge-pass">Yes</span>'
+                if opportunity
+                else '<span class="badge badge-neutral">No</span>'
+            )
+            detail_str = " &middot; ".join(details)
+            rows += (
+                f"<tr>"
+                f"<td><strong>{desc}</strong></td>"
+                f"<td>{badge}</td>"
+                f'<td style="font-size:12px;color:#64748b;">{detail_str}</td>'
+                f"</tr>"
+            )
 
-            html += f'<tr>'
-            html += f'<td><strong>{desc}</strong></td>'
-            html += f'<td>{status}</td>'
-            html += f'<td><small>{details_str}</small></td>'
-            html += f'</tr>'
+        summary = checklist.get("summary", {})
+        opp_count = summary.get("opportunities", 0)
+        summary_desc = summary.get("description", "")
 
-        # Summary row
-        summary = checklist.get('summary', {})
-        opportunities = summary.get('opportunities', 0)
-        html += f'<tr style="background: #f8f9fa; font-weight: bold;">'
-        html += f'<td colspan="2">Total Opportunities</td>'
-        html += f'<td>{opportunities} - {summary.get("description", "")}</td>'
-        html += f'</tr>'
-
-        html += '</tbody></table>'
-        return html
+        return (
+            '<table class="data-table">'
+            "<thead><tr><th>Opportunity Type</th><th>Signal</th><th>Details</th></tr></thead>"
+            f"<tbody>{rows}</tbody>"
+            f'<tfoot><tr><td colspan="2"><strong>Total Signals</strong></td>'
+            f"<td>{opp_count} &mdash; {summary_desc}</td></tr></tfoot>"
+            "</table>"
+        )

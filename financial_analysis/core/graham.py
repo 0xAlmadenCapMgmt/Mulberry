@@ -317,7 +317,7 @@ class GrahamAnalyzer:
             'pass': combined <= 22.5,
             'value': combined,
             'target': '<= 22.5',
-            'description': 'Graham Number criterion'
+            'description': 'Combined earnings-book value multiple'
         }
 
         # 8. Adequate size
@@ -370,7 +370,7 @@ class GrahamAnalyzer:
             'price': price,
             'target_price': net_net_buy_price,
             'discount': (net_net_buy_price - price) / net_net_buy_price if net_net_buy_price > 0 else 0,
-            'description': 'Extreme deep value (Ben Graham\'s favorite)'
+            'description': 'Extreme deep value — price below liquidation value'
         }
 
         # 2. Low P/E with growth
@@ -422,7 +422,7 @@ class GrahamAnalyzer:
         results['summary'] = {
             'opportunities': opportunities,
             'high_conviction': opportunities >= 2,
-            'description': 'Suitable for enterprising investor' if opportunities >= 2 else 'Limited opportunities'
+            'description': 'Multiple value signals present' if opportunities >= 2 else 'Limited value signals'
         }
 
         return results
@@ -508,12 +508,12 @@ class GrahamAnalyzer:
         """Generate investment recommendation based on analysis"""
 
         if avg_margin >= 0.50:
-            return "STRONG BUY - Exceptional margin of safety (50%+)"
+            return "STRONG BUY — Exceptional margin of safety above 50%"
         elif avg_margin >= 0.30:
-            return "BUY - Adequate margin of safety for defensive investor (30%+)"
+            return "BUY — Adequate margin of safety (≥ 30%)"
         elif avg_margin >= 0.15:
-            return "HOLD - Modest margin, suitable only for enterprising investor"
+            return "HOLD — Modest margin of safety (15–30%), limited upside"
         elif avg_margin >= 0:
-            return "AVOID - Insufficient margin of safety"
+            return "AVOID — Insufficient margin of safety"
         else:
-            return "SELL - Trading above intrinsic value"
+            return "SELL — Trading above estimated intrinsic value"

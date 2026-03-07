@@ -1,145 +1,144 @@
 """Plotly chart builders for financial visualizations"""
 
 import plotly.graph_objects as go
-import plotly.express as px
-from plotly.subplots import make_subplots
 from typing import Dict, List, Any, Optional
-import pandas as pd
 
 from ..utils.formatters import format_currency, format_percent
+
+# Shared color palette
+_GREEN = "#10b981"
+_RED = "#ef4444"
+_BLUE = "#3b82f6"
+_AMBER = "#f59e0b"
+_SLATE = "#64748b"
+_NAVY = "#0f172a"
 
 
 class ChartBuilder:
     """
-    Builder class for creating interactive Plotly charts
+    Builder class for creating interactive Plotly charts.
 
-    All charts return Plotly Figure objects that can be:
-    - Displayed in notebooks
-    - Converted to HTML with fig.to_html()
-    - Exported to static images
+    All methods return Plotly Figure objects that can be converted to
+    self-contained HTML via fig.to_html().
     """
 
     @staticmethod
-    def create_graham_valuation_chart(
+    def create_valuation_chart(
         valuations: Dict[str, float],
         current_price: float,
-        symbol: str
+        symbol: str,
     ) -> go.Figure:
-        """
-        Create bar chart comparing four Graham valuations vs current price
-
-        Args:
-            valuations: Dict with graham_number, ncav, normalized, dividend_adjusted
-            current_price: Current market price
-            symbol: Stock symbol
-
-        Returns:
-            Plotly Figure
-        """
+        """Bar chart comparing four intrinsic value estimates vs current price."""
         methods = [
-            'Graham Number',
-            'Net-Net NCAV',
-            'Normalized Earnings',
-            'Dividend-Adjusted',
-            'Current Price'
+            "Earnings-Book Value",
+            "Net Asset Value",
+            "Normalized Earnings",
+            "Growth-Adjusted",
+            "Current Price",
         ]
 
         values = [
-            valuations.get('graham_number', 0),
-            valuations.get('ncav_per_share', 0) * 0.67,  # Buy at 2/3 NCAV
-            valuations.get('normalized_value', 0),
-            valuations.get('dividend_adjusted_value', 0),
-            current_price
+            valuations.get("graham_number", 0),
+            valuations.get("ncav_per_share", 0) * 0.67,
+            valuations.get("normalized_value", 0),
+            valuations.get("dividend_adjusted_value", 0),
+            current_price,
         ]
 
-        # Color code: green for valuations, red for current price
-        colors = ['#28a745', '#28a745', '#28a745', '#28a745', '#dc3545']
+        colors = [_GREEN, _GREEN, _GREEN, _GREEN, _RED]
 
-        fig = go.Figure(data=[
-            go.Bar(
-                x=methods,
-                y=values,
-                marker_color=colors,
-                text=[format_currency(v) for v in values],
-                textposition='outside',
-                hovertemplate='%{x}<br>%{text}<extra></extra>'
-            )
-        ])
-
-        fig.update_layout(
-            title=f'{symbol} - Graham Valuation Methods',
-            xaxis_title='Valuation Method',
-            yaxis_title='Price ($)',
-            showlegend=False,
-            height=500,
-            template='plotly_white',
-            font=dict(size=12)
+        fig = go.Figure(
+            data=[
+                go.Bar(
+                    x=methods,
+                    y=values,
+                    marker_color=colors,
+                    marker_line_width=0,
+                    text=[format_currency(v) for v in values],
+                    textposition="outside",
+                    hovertemplate="%{x}<br>%{text}<extra></extra>",
+                )
+            ]
         )
 
-        # Add horizontal line for current price
+        fig.update_layout(
+            title=dict(text=f"{symbol} \u2014 Intrinsic Value Estimates", font=dict(size=14, color=_NAVY)),
+            xaxis_title=None,
+            yaxis_title="Price (USD)",
+            showlegend=False,
+            height=420,
+            template="plotly_white",
+            font=dict(size=12, color=_SLATE),
+            margin=dict(t=50, b=40, l=60, r=20),
+            plot_bgcolor="white",
+            paper_bgcolor="white",
+        )
+
         fig.add_hline(
             y=current_price,
             line_dash="dash",
-            line_color="red",
+            line_color=_RED,
+            line_width=1.5,
             annotation_text=f"Current: {format_currency(current_price)}",
-            annotation_position="right"
+            annotation_position="right",
+            annotation_font_size=11,
         )
 
         return fig
 
+    @classmethod
+    def create_graham_valuation_chart(cls, *args, **kwargs) -> go.Figure:
+        """Backward-compatible alias for create_valuation_chart."""
+        return cls.create_valuation_chart(*args, **kwargs)
+
     @staticmethod
     def create_margin_of_safety_gauge(margin: float, symbol: str) -> go.Figure:
-        """
-        Create gauge chart showing margin of safety
+        """Semicircle gauge showing margin of safety."""
+        margin_pct = margin * 100
 
-        Args:
-            margin: Margin of safety as decimal (-1 to 1)
-            symbol: Stock symbol
-
-        Returns:
-            Plotly Figure
-        """
-        margin_percent = margin * 100
-
-        # Color based on margin level
         if margin >= 0.50:
-            color = '#28a745'  # Green - strong buy
+            bar_color = _GREEN
         elif margin >= 0.30:
-            color = '#17a2b8'  # Blue - buy
+            bar_color = _BLUE
         elif margin >= 0.15:
-            color = '#ffc107'  # Yellow - hold
+            bar_color = _AMBER
         elif margin >= 0:
-            color = '#fd7e14'  # Orange - avoid
+            bar_color = "#f97316"
         else:
-            color = '#dc3545'  # Red - sell
+            bar_color = _RED
 
-        fig = go.Figure(go.Indicator(
-            mode="gauge+number+delta",
-            value=margin_percent,
-            domain={'x': [0, 1], 'y': [0, 1]},
-            title={'text': f"{symbol} - Margin of Safety"},
-            delta={'reference': 30, 'suffix': '%'},
-            gauge={
-                'axis': {'range': [-50, 100], 'ticksuffix': '%'},
-                'bar': {'color': color},
-                'steps': [
-                    {'range': [-50, 0], 'color': '#ffcccc'},
-                    {'range': [0, 15], 'color': '#ffe5cc'},
-                    {'range': [15, 30], 'color': '#fff9cc'},
-                    {'range': [30, 50], 'color': '#ccffcc'},
-                    {'range': [50, 100], 'color': '#99ff99'}
-                ],
-                'threshold': {
-                    'line': {'color': "red", 'width': 4},
-                    'thickness': 0.75,
-                    'value': 30
-                }
-            }
-        ))
+        fig = go.Figure(
+            go.Indicator(
+                mode="gauge+number+delta",
+                value=margin_pct,
+                domain={"x": [0, 1], "y": [0, 1]},
+                title={"text": f"{symbol} \u2014 Margin of Safety", "font": {"size": 14, "color": _NAVY}},
+                number={"suffix": "%", "font": {"size": 28}},
+                delta={"reference": 30, "suffix": "%"},
+                gauge={
+                    "axis": {"range": [-50, 100], "ticksuffix": "%", "tickfont": {"size": 11}},
+                    "bar": {"color": bar_color, "thickness": 0.6},
+                    "steps": [
+                        {"range": [-50, 0], "color": "#fee2e2"},
+                        {"range": [0, 15], "color": "#fef3c7"},
+                        {"range": [15, 30], "color": "#fefce8"},
+                        {"range": [30, 50], "color": "#d1fae5"},
+                        {"range": [50, 100], "color": "#a7f3d0"},
+                    ],
+                    "threshold": {
+                        "line": {"color": _NAVY, "width": 2},
+                        "thickness": 0.8,
+                        "value": 30,
+                    },
+                },
+            )
+        )
 
         fig.update_layout(
-            height=400,
-            template='plotly_white'
+            height=340,
+            template="plotly_white",
+            margin=dict(t=60, b=20, l=40, r=40),
+            paper_bgcolor="white",
         )
 
         return fig
@@ -149,49 +148,50 @@ class ChartBuilder:
         dates: List[str],
         prices: List[float],
         symbol: str,
-        graham_number: Optional[float] = None
+        intrinsic_value: Optional[float] = None,
+        graham_number: Optional[float] = None,  # legacy param name
     ) -> go.Figure:
-        """
-        Create price history chart with optional Graham Number overlay
+        """Price history line chart with optional intrinsic value reference line."""
+        ref_value = intrinsic_value or graham_number
 
-        Args:
-            dates: List of date strings
-            prices: List of prices
-            symbol: Stock symbol
-            graham_number: Optional Graham Number to overlay
-
-        Returns:
-            Plotly Figure
-        """
         fig = go.Figure()
 
-        # Price line
-        fig.add_trace(go.Scatter(
-            x=dates,
-            y=prices,
-            mode='lines',
-            name='Price',
-            line=dict(color='#1f77b4', width=2),
-            hovertemplate='%{x}<br>$%{y:.2f}<extra></extra>'
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=dates,
+                y=prices,
+                mode="lines",
+                name="Price",
+                line=dict(color=_BLUE, width=2),
+                hovertemplate="%{x}<br>$%{y:.2f}<extra></extra>",
+                fill="tozeroy",
+                fillcolor="rgba(59,130,246,0.05)",
+            )
+        )
 
-        # Graham Number line
-        if graham_number:
+        if ref_value and ref_value > 0:
             fig.add_hline(
-                y=graham_number,
+                y=ref_value,
                 line_dash="dash",
-                line_color="green",
-                annotation_text=f"Graham Number: {format_currency(graham_number)}",
-                annotation_position="right"
+                line_color=_GREEN,
+                line_width=1.5,
+                annotation_text=f"Intrinsic Value Est.: {format_currency(ref_value)}",
+                annotation_position="right",
+                annotation_font_size=11,
             )
 
         fig.update_layout(
-            title=f'{symbol} - Price History',
-            xaxis_title='Date',
-            yaxis_title='Price ($)',
-            height=500,
-            template='plotly_white',
-            hovermode='x unified'
+            title=dict(text=f"{symbol} \u2014 Price History", font=dict(size=14, color=_NAVY)),
+            xaxis_title=None,
+            yaxis_title="Price (USD)",
+            height=420,
+            template="plotly_white",
+            hovermode="x unified",
+            font=dict(size=12, color=_SLATE),
+            margin=dict(t=50, b=40, l=60, r=20),
+            showlegend=False,
+            plot_bgcolor="white",
+            paper_bgcolor="white",
         )
 
         return fig
@@ -199,211 +199,104 @@ class ChartBuilder:
     @staticmethod
     def create_financial_trends_chart(
         income_data: List[Dict[str, Any]],
-        symbol: str
+        symbol: str,
     ) -> go.Figure:
-        """
-        Create multi-line chart for revenue, earnings, and cash flow trends
-
-        Args:
-            income_data: List of income statement dictionaries
-            symbol: Stock symbol
-
-        Returns:
-            Plotly Figure
-        """
+        """Multi-line chart for revenue and net income trends."""
         if not income_data:
             return go.Figure()
 
-        # Extract data
-        dates = [d['fiscalDateEnding'] for d in income_data]
-        revenues = [d.get('totalRevenue', 0) / 1_000_000 for d in income_data]
-        net_incomes = [d.get('netIncome', 0) / 1_000_000 for d in income_data]
+        dates = [d["fiscalDateEnding"] for d in income_data]
+        revenues = [d.get("totalRevenue", 0) / 1_000_000 for d in income_data]
+        net_incomes = [d.get("netIncome", 0) / 1_000_000 for d in income_data]
 
         fig = go.Figure()
 
-        fig.add_trace(go.Scatter(
-            x=dates,
-            y=revenues,
-            mode='lines+markers',
-            name='Revenue',
-            line=dict(color='#1f77b4', width=2),
-            hovertemplate='%{x}<br>Revenue: $%{y:.1f}M<extra></extra>'
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=dates,
+                y=revenues,
+                mode="lines+markers",
+                name="Revenue",
+                line=dict(color=_BLUE, width=2),
+                marker=dict(size=6),
+                hovertemplate="%{x}<br>Revenue: $%{y:.1f}M<extra></extra>",
+            )
+        )
 
-        fig.add_trace(go.Scatter(
-            x=dates,
-            y=net_incomes,
-            mode='lines+markers',
-            name='Net Income',
-            line=dict(color='#2ca02c', width=2),
-            hovertemplate='%{x}<br>Net Income: $%{y:.1f}M<extra></extra>'
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=dates,
+                y=net_incomes,
+                mode="lines+markers",
+                name="Net Income",
+                line=dict(color=_GREEN, width=2),
+                marker=dict(size=6),
+                hovertemplate="%{x}<br>Net Income: $%{y:.1f}M<extra></extra>",
+            )
+        )
 
         fig.update_layout(
-            title=f'{symbol} - Financial Trends (in millions)',
-            xaxis_title='Date',
-            yaxis_title='Amount ($M)',
-            height=500,
-            template='plotly_white',
-            hovermode='x unified',
-            legend=dict(x=0, y=1)
+            title=dict(text=f"{symbol} \u2014 Financial Performance (Annual, $M)", font=dict(size=14, color=_NAVY)),
+            xaxis_title=None,
+            yaxis_title="Amount ($M)",
+            height=420,
+            template="plotly_white",
+            hovermode="x unified",
+            legend=dict(x=0.01, y=0.99, bgcolor="rgba(255,255,255,0.8)"),
+            font=dict(size=12, color=_SLATE),
+            margin=dict(t=50, b=40, l=70, r=20),
+            plot_bgcolor="white",
+            paper_bgcolor="white",
         )
 
         return fig
 
     @staticmethod
-    def create_defensive_checklist_chart(checklist: Dict[str, Any], symbol: str) -> go.Figure:
-        """
-        Create visual checklist for defensive investor criteria
+    def create_health_scorecard_chart(
+        checklist: Dict[str, Any], symbol: str
+    ) -> go.Figure:
+        """Horizontal bar chart visualizing financial health scorecard pass/fail."""
+        criteria = {k: v for k, v in checklist.items() if k != "summary"}
 
-        Args:
-            checklist: Defensive investor checklist results
-            symbol: Stock symbol
-
-        Returns:
-            Plotly Figure
-        """
-        # Remove summary from display
-        criteria = {k: v for k, v in checklist.items() if k != 'summary'}
-
-        names = []
-        passes = []
-        colors = []
-        values = []
-
+        names, passes, colors = [], [], []
         for criterion, result in criteria.items():
-            names.append(criterion.replace('_', ' ').title())
-            passed = result.get('pass', False)
+            names.append(criterion.replace("_", " ").title())
+            passed = result.get("pass", False)
             passes.append(1 if passed else 0)
-            colors.append('#28a745' if passed else '#dc3545')
+            colors.append(_GREEN if passed else _RED)
 
-            # Format value display
-            value = result.get('value', '')
-            if isinstance(value, float):
-                if value > 100:
-                    value = format_currency(value)
-                else:
-                    value = f"{value:.2f}"
-            values.append(str(value))
-
-        fig = go.Figure(data=[
-            go.Bar(
-                y=names,
-                x=passes,
-                orientation='h',
-                marker_color=colors,
-                text=['✓ PASS' if p == 1 else '✗ FAIL' for p in passes],
-                textposition='inside',
-                hovertemplate='%{y}<br>%{text}<extra></extra>',
-                showlegend=False
-            )
-        ])
-
-        fig.update_layout(
-            title=f'{symbol} - Defensive Investor Checklist',
-            xaxis_title='Pass/Fail',
-            xaxis=dict(tickvals=[0, 1], ticktext=['Fail', 'Pass']),
-            height=400,
-            template='plotly_white'
-        )
-
-        return fig
-
-    @staticmethod
-    def create_valuation_spider_chart(
-        pe_ratio: float,
-        pb_ratio: float,
-        ps_ratio: float,
-        current_ratio: float,
-        debt_equity: float,
-        roe: float,
-        symbol: str
-    ) -> go.Figure:
-        """
-        Create spider/radar chart showing relative valuation metrics
-
-        Args:
-            Various financial ratios
-            symbol: Stock symbol
-
-        Returns:
-            Plotly Figure
-        """
-        categories = ['P/E', 'P/B', 'P/S', 'Current Ratio', 'Debt/Equity', 'ROE']
-
-        # Normalize values to 0-100 scale (lower is better for most)
-        values = [
-            max(0, 100 - min(pe_ratio * 5, 100)),  # Lower P/E is better
-            max(0, 100 - min(pb_ratio * 50, 100)),  # Lower P/B is better
-            max(0, 100 - min(ps_ratio * 25, 100)),  # Lower P/S is better
-            min(current_ratio * 33, 100),  # Higher current ratio is better
-            max(0, 100 - min(debt_equity * 100, 100)),  # Lower debt is better
-            min(roe * 500, 100)  # Higher ROE is better
-        ]
-
-        fig = go.Figure(data=go.Scatterpolar(
-            r=values,
-            theta=categories,
-            fill='toself',
-            name=symbol,
-            line_color='#1f77b4'
-        ))
-
-        fig.update_layout(
-            polar=dict(
-                radialaxis=dict(
-                    visible=True,
-                    range=[0, 100]
+        fig = go.Figure(
+            data=[
+                go.Bar(
+                    y=names,
+                    x=passes,
+                    orientation="h",
+                    marker_color=colors,
+                    marker_line_width=0,
+                    text=["Pass" if p == 1 else "Fail" for p in passes],
+                    textposition="inside",
+                    insidetextanchor="middle",
+                    hovertemplate="%{y}: %{text}<extra></extra>",
+                    showlegend=False,
                 )
-            ),
-            title=f'{symbol} - Valuation Profile',
-            height=500,
-            template='plotly_white'
+            ]
         )
-
-        return fig
-
-    @staticmethod
-    def create_earnings_history_chart(
-        earnings_history: List[float],
-        symbol: str
-    ) -> go.Figure:
-        """
-        Create bar chart showing earnings history
-
-        Args:
-            earnings_history: List of annual EPS values
-            symbol: Stock symbol
-
-        Returns:
-            Plotly Figure
-        """
-        if not earnings_history:
-            return go.Figure()
-
-        years = list(range(len(earnings_history), 0, -1))
-        colors = ['#28a745' if e > 0 else '#dc3545' for e in earnings_history]
-
-        fig = go.Figure(data=[
-            go.Bar(
-                x=years,
-                y=earnings_history,
-                marker_color=colors,
-                text=[f'${e:.2f}' for e in earnings_history],
-                textposition='outside',
-                hovertemplate='Year %{x}<br>EPS: $%{y:.2f}<extra></extra>'
-            )
-        ])
 
         fig.update_layout(
-            title=f'{symbol} - Earnings History (EPS)',
-            xaxis_title='Years Ago',
-            yaxis_title='EPS ($)',
-            height=400,
-            template='plotly_white',
-            showlegend=False
+            title=dict(text=f"{symbol} \u2014 Financial Health Scorecard", font=dict(size=14, color=_NAVY)),
+            xaxis=dict(tickvals=[0, 1], ticktext=["Fail", "Pass"], showgrid=False),
+            yaxis=dict(autorange="reversed"),
+            height=360,
+            template="plotly_white",
+            font=dict(size=12, color=_SLATE),
+            margin=dict(t=50, b=30, l=170, r=20),
+            plot_bgcolor="white",
+            paper_bgcolor="white",
         )
 
-        fig.add_hline(y=0, line_dash="dash", line_color="gray")
-
         return fig
+
+    @classmethod
+    def create_defensive_checklist_chart(cls, *args, **kwargs) -> go.Figure:
+        """Backward-compatible alias for create_health_scorecard_chart."""
+        return cls.create_health_scorecard_chart(*args, **kwargs)

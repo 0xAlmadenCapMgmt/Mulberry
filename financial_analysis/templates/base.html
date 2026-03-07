@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Charlotte - Financial Analysis Report{% endblock %}</title>
+    <script src="https://cdn.plot.ly/plotly-2.26.0.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f7fa;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: white;
+            padding: 30px 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .header .subtitle {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .content {
+            background: white;
+            padding: 30px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .section {
+            margin: 40px 0;
+        }
+
+        .section-title {
+            font-size: 1.8em;
+            color: #1a1a2e;
+            border-bottom: 3px solid #007bff;
+            padding-bottom: 10px;
+            margin-bottom: 25px;
+        }
+
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .metric-card {
+            background: #f8f9fa;
+            border: 1px solid #e1e4e8;
+            border-radius: 8px;
+            padding: 20px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .metric-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .metric-label {
+            font-size: 0.9em;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 5px;
+        }
+
+        .metric-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #1a1a2e;
+        }
+
+        .metric-value.positive {
+            color: #28a745;
+        }
+
+        .metric-value.negative {
+            color: #dc3545;
+        }
+
+        .recommendation {
+            padding: 25px;
+            border-radius: 8px;
+            margin: 30px 0;
+            font-size: 1.3em;
+            font-weight: 600;
+            text-align: center;
+        }
+
+        .recommendation.strong-buy {
+            background: #d4edda;
+            border: 2px solid #28a745;
+            color: #155724;
+        }
+
+        .recommendation.buy {
+            background: #d1ecf1;
+            border: 2px solid #17a2b8;
+            color: #0c5460;
+        }
+
+        .recommendation.hold {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            color: #856404;
+        }
+
+        .recommendation.avoid {
+            background: #f8d7da;
+            border: 2px solid #dc3545;
+            color: #721c24;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background: white;
+        }
+
+        table thead {
+            background: #1a1a2e;
+            color: white;
+        }
+
+        table th, table td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        table tbody tr:hover {
+            background: #f8f9fa;
+        }
+
+        .pass {
+            color: #28a745;
+            font-weight: bold;
+        }
+
+        .fail {
+            color: #dc3545;
+            font-weight: bold;
+        }
+
+        .chart-container {
+            margin: 30px 0;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .footer {
+            background: #1a1a2e;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            margin-top: 40px;
+        }
+
+        .footer a {
+            color: #17a2b8;
+            text-decoration: none;
+        }
+
+        .disclaimer {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 30px 0;
+            color: #856404;
+        }
+
+        .disclaimer h3 {
+            margin-bottom: 10px;
+        }
+
+        @media print {
+            body {
+                background: white;
+            }
+            .content {
+                box-shadow: none;
+            }
+        }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <div class="header">
+        <div class="container">
+            {% block header %}
+            <h1>CHARLOTTE</h1>
+            <div class="subtitle">Ben Graham Value Investing Analysis • Generated on {{ generation_time }}</div>
+            {% endblock %}
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="content">
+            {% block content %}{% endblock %}
+        </div>
+
+        <div class="disclaimer">
+            <h3>⚠️ Important Disclaimer</h3>
+            <p>
+                This report is for informational and educational purposes only. It does not constitute
+                financial, investment, or trading advice. Always conduct your own due diligence and consult
+                with a qualified financial advisor before making investment decisions. Past performance does
+                not guarantee future results.
+            </p>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>
+            Generated by <strong>Charlotte</strong> - Financial Analysis Platform |
+            Powered by Ben Graham's Value Investing Principles |
+            <a href="https://github.com/yourusername/charlotte" target="_blank">GitHub</a>
+        </p>
+        <p style="margin-top: 10px; font-size: 0.9em; opacity: 0.8;">
+            Data Sources: Alpha Vantage, Yahoo Finance, SEC EDGAR
+        </p>
+    </div>
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

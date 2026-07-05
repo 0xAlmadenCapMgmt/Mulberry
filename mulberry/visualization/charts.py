@@ -28,13 +28,12 @@ class ChartBuilder:
         current_price: float,
         symbol: str,
     ) -> go.Figure:
-        """Bar chart comparing four intrinsic value estimates vs current price."""
+        """Bar chart comparing intrinsic value estimates vs current price."""
         methods = [
             "Earnings-Book Value",
             "Net Asset Value",
             "Normalized Earnings",
             "Growth-Adjusted",
-            "Current Price",
         ]
 
         values = [
@@ -42,10 +41,19 @@ class ChartBuilder:
             valuations.get("ncav_per_share", 0) * 0.67,
             valuations.get("normalized_value", 0),
             valuations.get("dividend_adjusted_value", 0),
-            current_price,
         ]
 
-        colors = [_GREEN, _GREEN, _GREEN, _GREEN, _RED]
+        if valuations.get("dcf_value", 0) > 0:
+            methods.append("DCF (2-Stage FCF)")
+            values.append(valuations["dcf_value"])
+        if valuations.get("ddm_value", 0) > 0:
+            methods.append("Dividend Discount")
+            values.append(valuations["ddm_value"])
+
+        methods.append("Current Price")
+        values.append(current_price)
+
+        colors = [_GREEN] * (len(methods) - 1) + [_RED]
 
         fig = go.Figure(
             data=[
@@ -150,8 +158,10 @@ class ChartBuilder:
         symbol: str,
         intrinsic_value: Optional[float] = None,
         graham_number: Optional[float] = None,  # legacy param name
+        sma_50: Optional[List[float]] = None,
+        sma_200: Optional[List[float]] = None,
     ) -> go.Figure:
-        """Price history line chart with optional intrinsic value reference line."""
+        """Price history line chart with optional intrinsic value and SMA overlays."""
         ref_value = intrinsic_value or graham_number
 
         fig = go.Figure()
@@ -168,6 +178,29 @@ class ChartBuilder:
                 fillcolor="rgba(59,130,246,0.05)",
             )
         )
+
+        if sma_50:
+            fig.add_trace(
+                go.Scatter(
+                    x=dates,
+                    y=sma_50,
+                    mode="lines",
+                    name="50-day avg",
+                    line=dict(color=_AMBER, width=1.2, dash="dot"),
+                    hovertemplate="%{x}<br>SMA50: $%{y:.2f}<extra></extra>",
+                )
+            )
+        if sma_200:
+            fig.add_trace(
+                go.Scatter(
+                    x=dates,
+                    y=sma_200,
+                    mode="lines",
+                    name="200-day avg",
+                    line=dict(color=_SLATE, width=1.2, dash="dash"),
+                    hovertemplate="%{x}<br>SMA200: $%{y:.2f}<extra></extra>",
+                )
+            )
 
         if ref_value and ref_value > 0:
             fig.add_hline(
@@ -189,8 +222,53 @@ class ChartBuilder:
             hovermode="x unified",
             font=dict(size=12, color=_SLATE),
             margin=dict(t=50, b=40, l=60, r=20),
-            showlegend=False,
+            showlegend=bool(sma_50 or sma_200),
+            legend=dict(x=0.01, y=0.99, bgcolor="rgba(255,255,255,0.8)"),
             plot_bgcolor="white",
+            paper_bgcolor="white",
+        )
+
+        return fig
+
+    @staticmethod
+    def create_framework_radar_chart(
+        lens_scores: Dict[str, float],
+        symbol: str,
+    ) -> go.Figure:
+        """Radar chart of the five framework lens scores (0-100)."""
+        labels = {
+            "value": "Value",
+            "quality": "Quality",
+            "growth": "Growth",
+            "momentum": "Momentum",
+            "dividend": "Dividend",
+        }
+        categories = [labels.get(k, k.title()) for k in labels if k in lens_scores]
+        scores = [lens_scores[k] for k in labels if k in lens_scores]
+
+        fig = go.Figure(
+            go.Scatterpolar(
+                r=scores + scores[:1],
+                theta=categories + categories[:1],
+                fill="toself",
+                fillcolor="rgba(59,130,246,0.15)",
+                line=dict(color=_BLUE, width=2),
+                hovertemplate="%{theta}: %{r:.0f}/100<extra></extra>",
+            )
+        )
+
+        fig.update_layout(
+            title=dict(text=f"{symbol} — Framework Scores", font=dict(size=14, color=_NAVY)),
+            polar=dict(
+                radialaxis=dict(range=[0, 100], tickfont=dict(size=10), gridcolor="#e2e8f0"),
+                angularaxis=dict(tickfont=dict(size=12)),
+                bgcolor="white",
+            ),
+            showlegend=False,
+            height=420,
+            template="plotly_white",
+            font=dict(size=12, color=_SLATE),
+            margin=dict(t=60, b=40, l=60, r=60),
             paper_bgcolor="white",
         )
 

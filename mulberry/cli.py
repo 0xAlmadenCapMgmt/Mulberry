@@ -1,4 +1,4 @@
-"""Command-line interface for Charlotte - Financial Analysis"""
+"""Command-line interface for Mulberry — Multi-Framework Stock Analysis"""
 
 import click
 import asyncio
@@ -20,36 +20,35 @@ logger = get_logger(__name__)
 
 
 def show_banner():
-    """Display Charlotte banner with ASCII rose"""
+    """Display Mulberry banner with ASCII berry sprig"""
     banner_lines = [
-        " ██████╗██╗  ██╗ █████╗ ██████╗ ██╗      ██████╗ ████████╗████████╗███████╗",
-        "██╔════╝██║  ██║██╔══██╗██╔══██╗██║     ██╔═══██╗╚══██╔══╝╚══██╔══╝██╔════╝",
-        "██║     ███████║███████║██████╔╝██║     ██║   ██║   ██║      ██║   █████╗   ",
-        "██║     ██╔══██║██╔══██║██╔══██╗██║     ██║   ██║   ██║      ██║   ██╔══╝   ",
-        "╚██████╗██║  ██║██║  ██║██║  ██║███████╗╚██████╔╝   ██║      ██║   ███████╗ ",
-        " ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝ ╚═════╝    ╚═╝      ╚═╝   ╚══════╝",
+        "███╗   ███╗██╗   ██╗██╗     ██████╗ ███████╗██████╗ ██████╗ ██╗   ██╗",
+        "████╗ ████║██║   ██║██║     ██╔══██╗██╔════╝██╔══██╗██╔══██╗╚██╗ ██╔╝",
+        "██╔████╔██║██║   ██║██║     ██████╔╝█████╗  ██████╔╝██████╔╝ ╚████╔╝ ",
+        "██║╚██╔╝██║██║   ██║██║     ██╔══██╗██╔══╝  ██╔══██╗██╔══██╗  ╚██╔╝  ",
+        "██║ ╚═╝ ██║╚██████╔╝███████╗██████╔╝███████╗██║  ██║██║  ██║   ██║   ",
+        "╚═╝     ╚═╝ ╚═════╝ ╚══════╝╚═════╝ ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝   ",
     ]
 
-    rose_lines = [
-        "  ,---.  ",
-        " /(@@@)\\ ",
-        "| ( @ ) |",
-        " \\(@@@)/ ",
-        "  `---'  ",
-        "    |    ",
+    berry_lines = [
+        "   _/   ",
+        "  (@)_  ",
+        " (@)(@) ",
+        "  (@)(@)",
+        "   (@)  ",
+        "        ",
     ]
 
     console.print()
-    for bl, rl in zip(banner_lines, rose_lines):
+    for bl, rl in zip(banner_lines, berry_lines):
         line = Text()
-        line.append(bl, style="bold blue")
-        line.append("  " + rl, style="bold red")
+        line.append(bl, style="bold magenta")
+        line.append("  " + rl, style="bold purple")
         console.print(line)
 
     subtitle = Text()
-    subtitle.append("\nFundamental Value Analysis ", style="cyan")
-    subtitle.append("♥\n", style="bold red")
-    subtitle.append("Professional Reports  •  Interactive Charts  •  No API Key Required", style="dim")
+    subtitle.append("\nMulti-Framework Stock Analysis\n", style="cyan")
+    subtitle.append("Value  •  Quality  •  Growth  •  Dividend  •  Momentum", style="dim")
 
     console.print(subtitle, justify="center")
     console.print()
@@ -60,12 +59,13 @@ def run_async(coro):
 
 
 @click.group()
-@click.version_option(version='0.2.0', prog_name='Charlotte')
+@click.version_option(version='0.3.0', prog_name='Mulberry')
 def cli():
     """
-    Charlotte - Fundamental Financial Analysis
+    Mulberry — Multi-Framework Stock Analysis
 
-    Generates professional valuation reports using Yahoo Finance data.
+    Generates professional analysis reports using Yahoo Finance data,
+    blending value, quality, growth, dividend, and momentum frameworks.
 
     \b
     Examples:
@@ -87,10 +87,11 @@ def cli():
 @click.option('--open-browser', '-b', is_flag=True, help='Open report in browser after generation')
 def analyze(symbol: str, output: str, open_browser: bool):
     """
-    Analyze a stock and generate an HTML valuation report.
+    Analyze a stock and generate an HTML analysis report.
 
-    Uses four intrinsic value methods with margin of safety analysis,
-    financial health scoring, and interactive Plotly charts.
+    Blends six intrinsic value methods with quality, growth, dividend,
+    and momentum frameworks into a composite score, rendered with
+    interactive Plotly charts.
 
     \b
     Example:
@@ -107,9 +108,9 @@ def analyze(symbol: str, output: str, open_browser: bool):
     symbol = normalize_ticker(symbol)
 
     console.print(Panel(
-        f"[bold cyan]Fundamental Value Analysis[/bold cyan]\n"
+        f"[bold cyan]Multi-Framework Analysis[/bold cyan]\n"
         f"Symbol: [bold]{symbol}[/bold]",
-        title="Charlotte",
+        title="Mulberry",
         border_style="cyan"
     ))
 
@@ -182,7 +183,7 @@ def info():
     """Display configuration and paths."""
     show_banner()
 
-    table = Table(title="Charlotte Configuration", show_header=True)
+    table = Table(title="Mulberry Configuration", show_header=True)
     table.add_column("Setting", style="cyan", width=30)
     table.add_column("Value", style="white")
 
@@ -205,7 +206,7 @@ def test_api():
 
     console.print(Panel(
         "[bold cyan]Testing Yahoo Finance Connectivity[/bold cyan]",
-        title="Charlotte",
+        title="Mulberry",
         border_style="cyan"
     ))
 
@@ -225,7 +226,7 @@ def examples():
 
     console.print(Panel(
         """
-[bold cyan]Charlotte Usage Examples[/bold cyan]
+[bold cyan]Mulberry Usage Examples[/bold cyan]
 
 [bold]1. Basic Analysis:[/bold]
    [green]fa analyze AAPL[/green]

@@ -47,7 +47,7 @@ class Config:
         self.project_root = project_root
         self.output_dir = project_root / "output" / "reports"
         self.cache_dir = project_root / ".cache"
-        self.templates_dir = project_root / "financial_analysis" / "templates"
+        self.templates_dir = project_root / "mulberry" / "templates"
 
         # Ensure directories exist
         self.output_dir.mkdir(parents=True, exist_ok=True)

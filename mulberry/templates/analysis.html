@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{{ symbol }} — Fundamental Analysis — Charlotte{% endblock %}
+{% block title %}{{ symbol }} — Multi-Framework Analysis — Mulberry{% endblock %}
 
 {% block stats_bar %}
 <div class="stats-bar">
@@ -52,10 +52,13 @@
 {% block nav %}
 <ul>
   <li><a href="#summary">Summary</a></li>
+  <li><a href="#frameworks">Frameworks</a></li>
   <li><a href="#valuation">Valuation</a></li>
+  <li><a href="#dcf">DCF</a></li>
   <li><a href="#safety">Safety Margin</a></li>
-  {% if price_chart %}<li><a href="#price">Price History</a></li>{% endif %}
+  {% if price_chart %}<li><a href="#price">Price &amp; Trend</a></li>{% endif %}
   <li><a href="#health">Financial Health</a></li>
+  <li><a href="#lenses">Lens Details</a></li>
   <li><a href="#opportunities">Opportunities</a></li>
   {% if financial_trends_chart %}<li><a href="#financials">Financials</a></li>{% endif %}
   <li><a href="#metrics">Key Metrics</a></li>
@@ -102,6 +105,12 @@
       <div class="metric-sub">Target ≥ 30%</div>
     </div>
 
+    <div class="metric-card {% if composite_score >= 60 %}accent-green{% elif composite_score < 40 %}accent-red{% else %}accent-amber{% endif %}">
+      <div class="metric-label">Composite Score</div>
+      <div class="metric-value">{{ "%.0f"|format(composite_score) }}<span style="font-size:14px;color:var(--slate-400);">/100</span></div>
+      <div class="metric-sub">Across 5 frameworks</div>
+    </div>
+
     <div class="metric-card accent-slate">
       <div class="metric-label">Company</div>
       <div class="metric-value" style="font-size:15px; line-height:1.3;">{{ company_name }}</div>
@@ -111,11 +120,23 @@
   </div>
 </div>
 
+<!-- ── Multi-Framework Scorecard ───────────────────── -->
+<div class="report-section" id="frameworks">
+  <div class="section-header">
+    <span class="section-title">Multi-Framework Scorecard</span>
+    <span class="section-tag">5 Lenses</span>
+  </div>
+  <div class="chart-wrap">{{ radar_chart | safe }}</div>
+  <div style="border:1px solid var(--slate-200); border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow);">
+    {{ framework_table | safe }}
+  </div>
+</div>
+
 <!-- ── Intrinsic Value Estimates ──────────────────── -->
 <div class="report-section" id="valuation">
   <div class="section-header">
     <span class="section-title">Intrinsic Value Estimates</span>
-    <span class="section-tag">4 Methods</span>
+    <span class="section-tag">Value Lens</span>
   </div>
 
   <div class="chart-wrap">{{ valuation_chart | safe }}</div>
@@ -209,6 +230,45 @@
   </div>
 </div>
 
+<!-- ── DCF Valuation ───────────────────────────────── -->
+<div class="report-section" id="dcf">
+  <div class="section-header">
+    <span class="section-title">Discounted Cash Flow</span>
+    <span class="section-tag">2-Stage FCF</span>
+  </div>
+  {% if dcf_value > 0 %}
+  <div class="metric-grid">
+    <div class="metric-card {% if dcf_value > current_price %}accent-green{% else %}accent-red{% endif %}">
+      <div class="metric-label">DCF Value / Share</div>
+      <div class="metric-value">${{ "%.2f"|format(dcf_value) }}</div>
+      <div class="metric-sub">vs ${{ "%.2f"|format(current_price) }} market price</div>
+    </div>
+    <div class="metric-card {% if dcf_margin >= 0.15 %}accent-green{% elif dcf_margin < 0 %}accent-red{% else %}accent-amber{% endif %}">
+      <div class="metric-label">DCF Margin of Safety</div>
+      <div class="metric-value">{{ "%.1f"|format(dcf_margin * 100) }}%</div>
+    </div>
+    <div class="metric-card accent-slate">
+      <div class="metric-label">Stage-1 Growth</div>
+      <div class="metric-value">{{ "%.1f"|format(dcf_stage1_growth * 100) }}%</div>
+      <div class="metric-sub">5 years, capped at 15%</div>
+    </div>
+    <div class="metric-card accent-slate">
+      <div class="metric-label">Discount / Terminal</div>
+      <div class="metric-value">{{ "%.0f"|format(dcf_discount_rate * 100) }}% / {{ "%.1f"|format(dcf_terminal_growth * 100) }}%</div>
+    </div>
+  </div>
+  {% if dcf_sensitivity_table %}
+  <div style="border:1px solid var(--slate-200); border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow); margin-top:16px;">
+    {{ dcf_sensitivity_table | safe }}
+  </div>
+  {% endif %}
+  {% else %}
+  <p style="font-size:13px; color:var(--slate-500);">
+    DCF value not computable — the company lacks a sufficiently positive free cash flow history.
+  </p>
+  {% endif %}
+</div>
+
 <!-- ── Margin of Safety ────────────────────────────── -->
 <div class="report-section" id="safety">
   <div class="section-header">
@@ -221,8 +281,8 @@
 {% if price_chart %}
 <div class="report-section" id="price">
   <div class="section-header">
-    <span class="section-title">Price History</span>
-    <span class="section-tag">6 Months</span>
+    <span class="section-title">Price &amp; Trend</span>
+    <span class="section-tag">2 Years</span>
   </div>
   <div class="chart-wrap">{{ price_chart | safe }}</div>
 </div>
@@ -237,6 +297,33 @@
   <div class="chart-wrap">{{ health_chart | safe }}</div>
   <div style="border:1px solid var(--slate-200); border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow);">
     {{ health_table | safe }}
+  </div>
+</div>
+
+<!-- ── Lens Details ────────────────────────────────── -->
+<div class="report-section" id="lenses">
+  <div class="section-header">
+    <span class="section-title">Framework Lens Details</span>
+  </div>
+
+  <h4 style="margin:16px 0 8px;">Business Quality — {{ quality_rating }} ({{ "%.0f"|format(quality_score) }}/100)</h4>
+  <div style="border:1px solid var(--slate-200); border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow);">
+    {{ quality_table | safe }}
+  </div>
+
+  <h4 style="margin:24px 0 8px;">Growth / GARP — {{ growth_rating }} ({{ "%.0f"|format(growth_score) }}/100)</h4>
+  <div style="border:1px solid var(--slate-200); border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow);">
+    {{ growth_table | safe }}
+  </div>
+
+  <h4 style="margin:24px 0 8px;">Dividend — {{ dividend_rating }} ({{ "%.0f"|format(dividend_score) }}/100)</h4>
+  <div style="border:1px solid var(--slate-200); border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow);">
+    {{ dividend_table | safe }}
+  </div>
+
+  <h4 style="margin:24px 0 8px;">Momentum — {{ momentum_signal }} ({{ "%.0f"|format(momentum_score) }}/100)</h4>
+  <div style="border:1px solid var(--slate-200); border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow);">
+    {{ momentum_table | safe }}
   </div>
 </div>
 
@@ -333,7 +420,29 @@
         <div class="method-formula">(EPS &times; (8.5 + 2g) &times; 4.4) / Y</div>
         <div class="method-desc">Adjusts for expected earnings growth and prevailing corporate bond yields</div>
       </div>
+      <div class="method-card">
+        <div class="method-name">Discounted Cash Flow</div>
+        <div class="method-formula">&Sigma; FCF&#8348; / (1+r)&#8348; + TV</div>
+        <div class="method-desc">Two-stage free cash flow model with capped growth and conservative terminal value</div>
+      </div>
+      <div class="method-card">
+        <div class="method-name">Dividend Discount</div>
+        <div class="method-formula">D&#8321; / (r &minus; g)</div>
+        <div class="method-desc">Gordon growth model for established dividend payers</div>
+      </div>
     </div>
+    <h4 style="margin-top:18px;">Framework Lenses</h4>
+    <p style="font-size:12px; color:var(--slate-500); line-height:1.7;">
+      The <strong>Composite Score</strong> blends five lenses:
+      <strong>Value</strong> (30%) — margin of safety from the intrinsic value methods above;
+      <strong>Quality</strong> (25%) — margins, returns on equity, and cash conversion;
+      <strong>Growth</strong> (20%) — revenue/EPS/FCF compounding and the PEG ratio;
+      <strong>Momentum</strong> (15%) — trend versus moving averages, RSI, and trailing returns;
+      <strong>Dividend</strong> (10%) — yield, payout sustainability, and track record
+      (weight redistributed for non-payers).
+      A severely negative margin of safety caps the overall recommendation at HOLD regardless
+      of the other lenses.
+    </p>
     <p style="font-size:12px; color:var(--slate-500); line-height:1.7;">
       <strong>Margin of Safety</strong> = (Intrinsic Value &minus; Market Price) / Intrinsic Value.
       A margin of &ge; 30% indicates sufficient buffer against estimation error for value investing.

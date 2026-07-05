@@ -39,7 +39,7 @@
 
 ✅ **Documentation**
 - `README.md`
-- `CHARLOTTE.md`
+- `README.md`
 - `QUICKSTART.md`
 - `NEXT_STEPS.md`
 - All other `.md` files
@@ -252,7 +252,7 @@ git status --short | grep -E "\\.env|secrets|credentials"
 ✅ Documentation complete
 ✅ Emergency procedures documented
 
-**Charlotte is secure and ready for GitHub!**
+**Mulberry is secure and ready for GitHub!**
 
 ---
 

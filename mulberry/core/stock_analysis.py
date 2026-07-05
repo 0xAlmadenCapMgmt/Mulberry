@@ -12,21 +12,34 @@ from ..cache.database import CacheManager
 from ..utils.logger import get_logger
 from ..utils.config import config
 from .graham import GrahamAnalyzer
+from .quality import QualityAnalyzer
+from .growth import GrowthAnalyzer
+from .dcf import DCFValuator
+from .dividend import DividendAnalyzer
+from .technicals import MomentumAnalyzer
+from .composite import CompositeScorer
 
 logger = get_logger(__name__)
 
 
 class StockAnalyzer:
     """
-    Comprehensive stock analysis using Yahoo Finance
+    Comprehensive multi-framework stock analysis using Yahoo Finance
 
-    Fetches all data from yfinance (no API key required), runs valuation
-    analysis, and returns a structured result dict for report generation.
+    Fetches all data from yfinance (no API key required), runs six analysis
+    frameworks (Graham value, DCF, quality, growth, dividend, momentum),
+    and returns a structured result dict for report generation.
     """
 
     def __init__(self, cache_manager: Optional[CacheManager] = None):
         self.cache = cache_manager or CacheManager(str(config.cache_db_path))
         self.valuation_engine = GrahamAnalyzer()
+        self.quality_engine = QualityAnalyzer()
+        self.growth_engine = GrowthAnalyzer()
+        self.dcf_engine = DCFValuator()
+        self.dividend_engine = DividendAnalyzer()
+        self.momentum_engine = MomentumAnalyzer()
+        self.composite_engine = CompositeScorer()
 
     async def analyze(self, symbol: str) -> Dict[str, Any]:
         """
@@ -59,7 +72,8 @@ class StockAnalyzer:
             "annual_balance": ticker.balance_sheet,
             "cashflow": ticker.cashflow,
             "dividends": ticker.dividends,
-            "history": ticker.history(period="6mo"),
+            # 2 years of history so the 200-day moving average is available
+            "history": ticker.history(period="2y"),
         }
 
     # ------------------------------------------------------------------
@@ -144,6 +158,34 @@ class StockAnalyzer:
 
         avg_intrinsic = self._avg_intrinsic_value(valuation)
 
+        # --- Expanded framework analysis ---
+        income_annual = income_data.get("annual", [])
+        cashflow_annual = cashflow_data.get("annual", [])
+        fcf_history = [r.get("freeCashFlow", 0) for r in cashflow_annual]
+
+        quality = self.quality_engine.analyze(stock_data, income_annual, cashflow_annual)
+        growth = self.growth_engine.analyze(stock_data, income_annual, cashflow_annual)
+        dividend = self.dividend_engine.analyze(stock_data, cashflow_annual, raw["dividends"])
+        momentum = self.momentum_engine.analyze(raw["history"], stock_data)
+
+        total_debt = latest_balance.get("longTermDebt", 0) + latest_balance.get("currentDebt", 0)
+        dcf = self.dcf_engine.valuate(
+            fcf_history=fcf_history,
+            shares_outstanding=shares_outstanding,
+            current_price=current_price,
+            cash=latest_balance.get("cash", 0),
+            total_debt=total_debt,
+        )
+
+        composite = self.composite_engine.score(
+            value_margin_of_safety=valuation.avg_margin_of_safety,
+            dcf_margin_of_safety=dcf.margin_of_safety,
+            quality=quality,
+            growth=growth,
+            dividend=dividend,
+            momentum=momentum,
+        )
+
         return {
             "symbol": symbol,
             "analysis_date": datetime.now().isoformat(),
@@ -170,9 +212,18 @@ class StockAnalyzer:
                     "average": valuation.avg_margin_of_safety,
                 },
             },
-            "recommendation": valuation.recommendation,
+            "recommendation": composite.recommendation,
+            "graham_recommendation": valuation.recommendation,
             "defensive_checklist": valuation.defensive_checklist,
             "enterprising_checklist": valuation.enterprise_checklist,
+            "frameworks": {
+                "quality": quality,
+                "growth": growth,
+                "dividend": dividend,
+                "momentum": momentum,
+                "dcf": dcf,
+                "composite": composite,
+            },
             "financial_statements": {
                 "income": income_data,
                 "balance": balance_data,

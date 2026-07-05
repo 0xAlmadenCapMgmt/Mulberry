@@ -75,6 +75,13 @@ class ReportGenerator:
         margins = valuation["margins_of_safety"]
         company_info = analysis["company_info"]
         metrics = analysis["metrics"]
+        frameworks = analysis["frameworks"]
+        quality = frameworks["quality"]
+        growth = frameworks["growth"]
+        dividend = frameworks["dividend"]
+        momentum = frameworks["momentum"]
+        dcf = frameworks["dcf"]
+        composite = frameworks["composite"]
 
         # --- Charts ---
         valuation_chart = self.chart_builder.create_valuation_chart(
@@ -83,8 +90,15 @@ class ReportGenerator:
                 "ncav_per_share": valuation["ncav_per_share"],
                 "normalized_value": valuation["normalized_value"],
                 "dividend_adjusted_value": valuation["dividend_adjusted_value"],
+                "dcf_value": dcf.intrinsic_value_per_share,
+                "ddm_value": dividend.ddm_value,
             },
             current_price=analysis["current_price"],
+            symbol=symbol.upper(),
+        )
+
+        radar_chart = self.chart_builder.create_framework_radar_chart(
+            lens_scores=composite.lens_scores,
             symbol=symbol.upper(),
         )
 
@@ -102,11 +116,16 @@ class ReportGenerator:
         price_chart = None
         history_df = analysis.get("history")
         if isinstance(history_df, pd.DataFrame) and not history_df.empty:
+            closes = history_df["Close"]
+            sma_50 = closes.rolling(50).mean() if len(closes) >= 50 else None
+            sma_200 = closes.rolling(200).mean() if len(closes) >= 200 else None
             price_chart = self.chart_builder.create_price_history_chart(
                 dates=[str(d.date()) for d in history_df.index],
-                prices=history_df["Close"].tolist(),
+                prices=closes.tolist(),
                 symbol=symbol.upper(),
-                intrinsic_value=valuation["graham_number"],
+                intrinsic_value=valuation["avg_intrinsic_value"],
+                sma_50=sma_50.tolist() if sma_50 is not None else None,
+                sma_200=sma_200.tolist() if sma_200 is not None else None,
             )
 
         # Financial trends
@@ -123,6 +142,12 @@ class ReportGenerator:
         opportunities_table = self._format_opportunities_table(
             analysis["enterprising_checklist"]
         )
+        framework_table = self._format_framework_table(composite)
+        quality_table = self._format_checks_table(quality.checks)
+        growth_table = self._format_checks_table(growth.checks)
+        dividend_table = self._format_checks_table(dividend.checks)
+        momentum_table = self._format_checks_table(momentum.checks)
+        dcf_sensitivity_table = self._format_dcf_sensitivity(dcf)
 
         # Health score label
         summary = analysis["defensive_checklist"].get("summary", {})
@@ -154,6 +179,26 @@ class ReportGenerator:
             "mos_normalized": margins["normalized"],
             "mos_dividend": margins["dividend_adjusted"],
             "recommendation": analysis["recommendation"],
+            "graham_recommendation": analysis.get("graham_recommendation", ""),
+            # Multi-framework results
+            "composite_score": composite.overall_score,
+            "lens_scores": composite.lens_scores,
+            "lens_ratings": composite.lens_ratings,
+            "lens_verdicts": composite.lens_verdicts,
+            "dcf_value": dcf.intrinsic_value_per_share,
+            "dcf_margin": dcf.margin_of_safety,
+            "dcf_stage1_growth": dcf.stage1_growth,
+            "dcf_discount_rate": dcf.discount_rate,
+            "dcf_terminal_growth": dcf.terminal_growth,
+            "ddm_value": dividend.ddm_value,
+            "quality_score": quality.score,
+            "quality_rating": quality.rating,
+            "growth_score": growth.score,
+            "growth_rating": growth.rating,
+            "dividend_score": dividend.score,
+            "dividend_rating": dividend.rating,
+            "momentum_score": momentum.score,
+            "momentum_signal": momentum.signal,
             # Metrics
             "eps": metrics.get("eps", 0),
             "book_value": metrics.get("book_value", 0),
@@ -180,9 +225,18 @@ class ReportGenerator:
             )
             if financial_trends_chart
             else None,
+            "radar_chart": radar_chart.to_html(
+                include_plotlyjs=False, div_id="radar_chart", full_html=False
+            ),
             # Tables
             "health_table": health_table,
             "opportunities_table": opportunities_table,
+            "framework_table": framework_table,
+            "quality_table": quality_table,
+            "growth_table": growth_table,
+            "dividend_table": dividend_table,
+            "momentum_table": momentum_table,
+            "dcf_sensitivity_table": dcf_sensitivity_table,
         }
 
         template = self.jinja_env.get_template("analysis.html")
@@ -302,5 +356,131 @@ class ReportGenerator:
             f"<tbody>{rows}</tbody>"
             f'<tfoot><tr><td colspan="2"><strong>Total Signals</strong></td>'
             f"<td>{opp_count} &mdash; {summary_desc}</td></tr></tfoot>"
+            "</table>"
+        )
+
+    def _format_framework_table(self, composite) -> str:
+        """Composite scorecard: one row per analysis lens."""
+        lens_names = {
+            "value": "Value (Graham + DCF)",
+            "quality": "Business Quality",
+            "growth": "Growth / GARP",
+            "momentum": "Momentum",
+            "dividend": "Dividend",
+        }
+        rows = ""
+        for key, label in lens_names.items():
+            score = composite.lens_scores.get(key, 0)
+            rating = composite.lens_ratings.get(key, "")
+            verdict = composite.lens_verdicts.get(key, "")
+            weight = composite.weights.get(key, 0)
+
+            if score >= 65:
+                badge_class = "badge-pass"
+            elif score >= 40:
+                badge_class = "badge-hold"
+            else:
+                badge_class = "badge-fail"
+
+            rows += (
+                f"<tr>"
+                f"<td><strong>{label}</strong></td>"
+                f'<td><span class="badge {badge_class}">{score:.0f}/100</span></td>'
+                f"<td>{rating}</td>"
+                f"<td>{weight:.0%}</td>"
+                f'<td style="font-size:12px;color:#64748b;">{verdict}</td>'
+                f"</tr>"
+            )
+
+        return (
+            '<table class="data-table">'
+            "<thead><tr><th>Framework</th><th>Score</th><th>Rating</th>"
+            "<th>Weight</th><th>Assessment</th></tr></thead>"
+            f"<tbody>{rows}</tbody>"
+            f'<tfoot><tr><td colspan="4"><strong>Composite Score</strong></td>'
+            f"<td><strong>{composite.overall_score:.0f}/100</strong></td></tr></tfoot>"
+            "</table>"
+        )
+
+    @staticmethod
+    def _format_check_value(key: str, value) -> str:
+        """Human-readable rendering for a check value."""
+        if isinstance(value, str):
+            return value
+        if isinstance(value, bool):
+            return "Yes" if value else "No"
+        if isinstance(value, (int, float)):
+            v = float(value)
+            # Ratios/rates below 1 (or small negatives) read best as percents,
+            # except explicit multiples like conversion or PEG
+            percent_keys = (
+                "margin", "roe", "yield", "growth", "cagr", "consistency",
+                "return", "sma",
+            )
+            if any(p in key for p in percent_keys) and abs(v) < 5:
+                return format_percent(v)
+            if abs(v) >= 1_000_000:
+                return _format_large(v)
+            if float(v).is_integer():
+                return f"{int(v)}"
+            return f"{v:.2f}"
+        return str(value)
+
+    def _format_checks_table(self, checks: dict) -> str:
+        """Generic criterion/target/actual/result table from a checks dict."""
+        rows = ""
+        for key, result in checks.items():
+            passed = result.get("pass", False)
+            value_str = self._format_check_value(key, result.get("value", ""))
+            target = result.get("target", "")
+            desc = result.get("description", "")
+
+            badge = (
+                '<span class="badge badge-pass">Pass</span>'
+                if passed
+                else '<span class="badge badge-fail">Miss</span>'
+            )
+            rows += (
+                f"<tr>"
+                f"<td><strong>{desc}</strong></td>"
+                f'<td style="font-family:monospace;font-size:12px;">{target}</td>'
+                f"<td>{value_str}</td>"
+                f"<td>{badge}</td>"
+                f"</tr>"
+            )
+
+        return (
+            '<table class="data-table">'
+            "<thead><tr><th>Criterion</th><th>Target</th><th>Actual</th><th>Result</th></tr></thead>"
+            f"<tbody>{rows}</tbody>"
+            "</table>"
+        )
+
+    @staticmethod
+    def _format_dcf_sensitivity(dcf) -> str:
+        """Discount-rate vs terminal-growth sensitivity grid."""
+        if not dcf.sensitivity:
+            return ""
+
+        terminal_rates = [
+            f"{cell['terminal_growth']:.1%} terminal"
+            for cell in dcf.sensitivity[0]["values"]
+        ]
+        header = "".join(f"<th>{t}</th>" for t in terminal_rates)
+
+        rows = ""
+        for row in dcf.sensitivity:
+            cells = "".join(
+                f"<td>{format_currency(cell['value'])}</td>" for cell in row["values"]
+            )
+            rows += (
+                f"<tr><td><strong>{row['discount_rate']:.0%} discount</strong></td>"
+                f"{cells}</tr>"
+            )
+
+        return (
+            '<table class="data-table">'
+            f"<thead><tr><th>Per-Share Value</th>{header}</tr></thead>"
+            f"<tbody>{rows}</tbody>"
             "</table>"
         )

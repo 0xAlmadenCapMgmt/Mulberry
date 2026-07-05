@@ -4,13 +4,13 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setup(
-    name="financial-analysis",
-    version="0.2.0",
-    author="Financial Analysis Team",
-    description="Fundamental value analysis and report generator",
+    name="mulberry",
+    version="0.3.0",
+    author="Almaden Capital Management",
+    description="Multi-framework stock analysis and report generator",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/yourusername/financial-analysis",
+    url="https://github.com/0xAlmadenCapMgmt/Mulberry",
     packages=find_packages(),
     classifiers=[
         "Development Status :: 3 - Alpha",
@@ -45,11 +45,12 @@ setup(
     },
     entry_points={
         "console_scripts": [
-            "fa=financial_analysis.cli:cli",
+            "mulberry=mulberry.cli:cli",
+            "fa=mulberry.cli:cli",
         ],
     },
     include_package_data=True,
     package_data={
-        "financial_analysis": ["templates/*.html"],
+        "mulberry": ["templates/*.html"],
     },
 )

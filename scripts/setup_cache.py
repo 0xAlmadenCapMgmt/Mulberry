@@ -6,8 +6,8 @@ from pathlib import Path
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from financial_analysis.cache.models import create_cache_db
-from financial_analysis.utils.config import config
+from mulberry.cache.models import create_cache_db
+from mulberry.utils.config import config
 
 def main():
     """Create cache database with all tables"""

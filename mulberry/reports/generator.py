@@ -40,8 +40,12 @@ class ReportGenerator:
     valuation analysis, and financial health scorecards.
     """
 
-    def __init__(self, analyzer: Optional[StockAnalyzer] = None):
-        self.analyzer = analyzer or StockAnalyzer()
+    def __init__(
+        self,
+        analyzer: Optional[StockAnalyzer] = None,
+        profile: str = "balanced",
+    ):
+        self.analyzer = analyzer or StockAnalyzer(profile=profile)
         self.chart_builder = ChartBuilder()
 
         self.jinja_env = jinja2.Environment(
@@ -53,7 +57,10 @@ class ReportGenerator:
         self.jinja_env.filters["format_large"] = _format_large
 
     async def generate_report(
-        self, symbol: str, output_path: Optional[str] = None
+        self,
+        symbol: str,
+        output_path: Optional[str] = None,
+        peers: Optional[list] = None,
     ) -> str:
         """
         Generate a comprehensive fundamental analysis HTML report.
@@ -61,13 +68,14 @@ class ReportGenerator:
         Args:
             symbol: Stock ticker symbol
             output_path: Optional output file path
+            peers: Optional list of peer tickers for relative comparison
 
         Returns:
             Path to generated HTML report
         """
         logger.info(f"Generating report for {symbol}")
 
-        analysis = await self.analyzer.analyze(symbol)
+        analysis = await self.analyzer.analyze(symbol, peers=peers)
 
         valuation = analysis["valuation"]
         margins = valuation["margins_of_safety"]
@@ -141,6 +149,11 @@ class ReportGenerator:
             analysis["enterprising_checklist"]
         )
         framework_table = self._format_framework_table(composite)
+        multiples_table = self._format_multiples_table(analysis.get("multiples"))
+        forward = analysis.get("forward")
+        forward_table = self._format_forward_table(forward, analysis["current_price"])
+        peer_comparison = analysis.get("peer_comparison")
+        peer_table = self._format_peer_table(peer_comparison)
         confidence = analysis.get("data_confidence")
         confidence_table = self._format_confidence_table(confidence)
         quality_table = self._format_checks_table(quality.checks)
@@ -181,6 +194,8 @@ class ReportGenerator:
             "recommendation": analysis["recommendation"],
             "graham_recommendation": analysis.get("graham_recommendation", ""),
             # Multi-framework results
+            "profile": composite.profile,
+            "profile_label": self._PROFILE_LABELS.get(composite.profile, composite.profile),
             "composite_score": composite.overall_score,
             "lens_scores": composite.lens_scores,
             "lens_ratings": composite.lens_ratings,
@@ -235,6 +250,12 @@ class ReportGenerator:
             "health_table": health_table,
             "opportunities_table": opportunities_table,
             "framework_table": framework_table,
+            "multiples_table": multiples_table,
+            "forward_table": forward_table,
+            "forward_has_data": bool(forward and forward.has_data),
+            "peer_table": peer_table,
+            "peer_symbols": ", ".join(peer_comparison.peer_symbols) if peer_comparison else "",
+            "peer_overall_percentile": peer_comparison.overall_percentile if peer_comparison else 0,
             "data_confidence_level": confidence.level if confidence else "",
             "data_confidence_score": confidence.score if confidence else 0,
             "data_confidence_notes": confidence.notes if confidence else [],
@@ -364,6 +385,121 @@ class ReportGenerator:
             f'<tfoot><tr><td colspan="2"><strong>Total Signals</strong></td>'
             f"<td>{opp_count} &mdash; {summary_desc}</td></tr></tfoot>"
             "</table>"
+        )
+
+    _PROFILE_LABELS = {
+        "balanced": "Balanced",
+        "deep_value": "Deep Value",
+        "garp": "Growth at a Reasonable Price",
+        "income": "Income",
+        "quality_growth": "Quality Growth",
+    }
+
+    @staticmethod
+    def _format_multiples_table(multiples) -> str:
+        """Relative-valuation multiples table (EV/EBITDA, EV/Sales, P/FCF)."""
+        if multiples is None:
+            return ""
+        rows_spec = [
+            ("EV / EBITDA", multiples.ev_ebitda, "Enterprise value to operating cash earnings"),
+            ("EV / Sales", multiples.ev_sales, "Enterprise value to revenue"),
+            ("Price / FCF", multiples.p_fcf, "Market cap to free cash flow"),
+        ]
+        rows = ""
+        for label, value, desc in rows_spec:
+            shown = f"{value:.1f}x" if value and value > 0 else "&mdash;"
+            rows += (
+                f"<tr><td><strong>{label}</strong></td>"
+                f"<td>{shown}</td>"
+                f'<td style="font-size:12px;color:#64748b;">{desc}</td></tr>'
+            )
+        return (
+            '<table class="data-table">'
+            "<thead><tr><th>Multiple</th><th>Value</th><th>Basis</th></tr></thead>"
+            f"<tbody>{rows}</tbody></table>"
+        )
+
+    @staticmethod
+    def _format_forward_table(forward, current_price: float) -> str:
+        """Analyst/estimate context panel."""
+        if forward is None or not forward.has_data:
+            return ""
+        rows = ""
+
+        def add(label, value):
+            nonlocal rows
+            rows += (
+                f"<tr><td><strong>{label}</strong></td><td>{value}</td></tr>"
+            )
+
+        if forward.recommendation_key:
+            mean = (
+                f" (mean {forward.recommendation_mean:.1f}/5)"
+                if forward.recommendation_mean else ""
+            )
+            analysts = f" · {forward.num_analysts} analysts" if forward.num_analysts else ""
+            add("Analyst consensus", f"{forward.recommendation_key.title()}{mean}{analysts}")
+        if forward.forward_pe:
+            add("Forward P/E", f"{forward.forward_pe:.1f}x")
+        if forward.peg_ratio:
+            add("Forward PEG", f"{forward.peg_ratio:.2f}")
+        if forward.target_mean:
+            target = format_currency(forward.target_mean)
+            if forward.upside_to_target is not None:
+                sign = "+" if forward.upside_to_target >= 0 else ""
+                target += f" ({sign}{forward.upside_to_target * 100:.1f}% vs price)"
+            add("Mean price target", target)
+        if forward.target_low and forward.target_high:
+            add(
+                "Target range",
+                f"{format_currency(forward.target_low)} – {format_currency(forward.target_high)}",
+            )
+
+        return (
+            '<table class="data-table">'
+            "<thead><tr><th>Forward Indicator</th><th>Value</th></tr></thead>"
+            f"<tbody>{rows}</tbody></table>"
+        )
+
+    @staticmethod
+    def _format_peer_table(comparison) -> str:
+        """Peer-relative percentile table (target vs peer median per metric)."""
+        if comparison is None or not comparison.results:
+            return ""
+
+        def fmt(value, kind):
+            if kind == "percent":
+                return format_percent(value)
+            return f"{value:.1f}x"
+
+        rows = ""
+        for r in comparison.results:
+            pct = r.percentile
+            if pct >= 0.66:
+                badge_class = "badge-pass"
+            elif pct >= 0.33:
+                badge_class = "badge-hold"
+            else:
+                badge_class = "badge-fail"
+            direction = "higher better" if r.higher_is_better else "lower better"
+            rows += (
+                f"<tr>"
+                f"<td><strong>{r.label}</strong>"
+                f'<div style="font-size:11px;color:var(--slate-400);">{direction}</div></td>'
+                f"<td>{fmt(r.target, r.fmt)}</td>"
+                f"<td>{fmt(r.peer_median, r.fmt)}</td>"
+                f'<td><span class="badge {badge_class}">{pct * 100:.0f}th pct</span></td>'
+                f"</tr>"
+            )
+
+        return (
+            '<table class="data-table">'
+            "<thead><tr><th>Metric</th><th>Target</th><th>Peer Median</th>"
+            "<th>Percentile</th></tr></thead>"
+            f"<tbody>{rows}</tbody>"
+            f'<tfoot><tr><td colspan="3"><strong>Overall vs Peers</strong></td>'
+            f"<td><strong>{comparison.overall_percentile * 100:.0f}th pct</strong></td>"
+            "</tr></tfoot></table>"
         )
 
     def _format_framework_table(self, composite) -> str:

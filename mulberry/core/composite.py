@@ -18,6 +18,7 @@ class CompositeScore:
     """Blended multi-framework result"""
     overall_score: float             # 0-100
     recommendation: str
+    profile: str = "balanced"        # investor-style weight profile used
     lens_scores: Dict[str, float] = field(default_factory=dict)
     lens_ratings: Dict[str, str] = field(default_factory=dict)
     lens_verdicts: Dict[str, str] = field(default_factory=dict)
@@ -28,19 +29,34 @@ class CompositeScorer:
     """
     Weighted blend of the five analysis lenses.
 
-    Default weights favor the price-versus-value question (value + quality
-    make up more than half the score) with growth, momentum, and dividends
-    as supporting evidence. When a company pays no dividend, that weight is
-    redistributed proportionally across the other lenses.
+    The weighting is chosen by an investor-style *profile*. The default
+    ``balanced`` profile favors the price-versus-value question (value + quality
+    make up more than half the score) with growth, momentum, and dividends as
+    supporting evidence; other profiles re-emphasize the lenses to match a
+    deep-value, growth-at-a-reasonable-price, income, or quality-growth mandate.
+    When a company pays no dividend, that weight is redistributed proportionally
+    across the other lenses regardless of profile.
     """
 
-    DEFAULT_WEIGHTS = {
-        "value": 0.30,
-        "quality": 0.25,
-        "growth": 0.20,
-        "momentum": 0.15,
-        "dividend": 0.10,
+    # Each profile's weights must sum to 1.0.
+    PROFILES = {
+        "balanced":       {"value": 0.30, "quality": 0.25, "growth": 0.20, "momentum": 0.15, "dividend": 0.10},
+        "deep_value":     {"value": 0.45, "quality": 0.20, "growth": 0.10, "momentum": 0.10, "dividend": 0.15},
+        "garp":           {"value": 0.25, "quality": 0.20, "growth": 0.35, "momentum": 0.15, "dividend": 0.05},
+        "income":         {"value": 0.20, "quality": 0.20, "growth": 0.10, "momentum": 0.10, "dividend": 0.40},
+        "quality_growth": {"value": 0.20, "quality": 0.35, "growth": 0.30, "momentum": 0.10, "dividend": 0.05},
     }
+
+    # Backward-compatible alias for the default weighting.
+    DEFAULT_WEIGHTS = PROFILES["balanced"]
+
+    def __init__(self, profile: str = "balanced"):
+        if profile not in self.PROFILES:
+            raise ValueError(
+                f"Unknown profile '{profile}'. Choose from: {', '.join(self.PROFILES)}"
+            )
+        self.profile = profile
+        self.base_weights = self.PROFILES[profile]
 
     def score(
         self,
@@ -96,7 +112,7 @@ class CompositeScorer:
             ),
         }
 
-        weights = dict(self.DEFAULT_WEIGHTS)
+        weights = dict(self.base_weights)
         if not dividend.pays_dividend:
             # Redistribute the dividend weight so non-payers aren't penalized
             freed = weights.pop("dividend")
@@ -114,6 +130,7 @@ class CompositeScorer:
         return CompositeScore(
             overall_score=overall,
             recommendation=recommendation,
+            profile=self.profile,
             lens_scores=lens_scores,
             lens_ratings=lens_ratings,
             lens_verdicts=lens_verdicts,

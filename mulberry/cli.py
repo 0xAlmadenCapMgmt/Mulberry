@@ -10,6 +10,7 @@ from rich.text import Text
 from pathlib import Path
 
 from .reports.generator import ReportGenerator
+from .core.composite import CompositeScorer
 from .cache.raw_cache import RawDataCache
 from .utils.config import config
 from .utils.logger import get_logger
@@ -59,7 +60,7 @@ def run_async(coro):
 
 
 @click.group()
-@click.version_option(version='0.4.0', prog_name='Mulberry')
+@click.version_option(version='0.5.0', prog_name='Mulberry')
 def cli():
     """
     Mulberry — Multi-Framework Stock Analysis
@@ -85,7 +86,10 @@ def cli():
 @click.argument('symbol')
 @click.option('--output', '-o', help='Output file path (default: auto-generated)')
 @click.option('--open-browser', '-b', is_flag=True, help='Open report in browser after generation')
-def analyze(symbol: str, output: str, open_browser: bool):
+@click.option('--peers', '-p', help='Comma-separated peer tickers for relative comparison (e.g. PEP,KDP,MNST)')
+@click.option('--profile', type=click.Choice(list(CompositeScorer.PROFILES)), default='balanced',
+              show_default=True, help='Investor-style weighting profile')
+def analyze(symbol: str, output: str, open_browser: bool, peers: str, profile: str):
     """
     Analyze a stock and generate an HTML analysis report.
 
@@ -97,6 +101,7 @@ def analyze(symbol: str, output: str, open_browser: bool):
     Example:
         fa analyze AAPL
         fa analyze MSFT -o msft_report.html -b
+        fa analyze KO --peers PEP,KDP,MNST --profile income
     """
     show_banner()
 
@@ -106,15 +111,18 @@ def analyze(symbol: str, output: str, open_browser: bool):
         raise click.Abort()
 
     symbol = normalize_ticker(symbol)
+    peer_list = [p.strip().upper() for p in peers.split(',') if p.strip()] if peers else None
 
+    detail = f"Symbol: [bold]{symbol}[/bold]\nProfile: [bold]{profile}[/bold]"
+    if peer_list:
+        detail += f"\nPeers: [bold]{', '.join(peer_list)}[/bold]"
     console.print(Panel(
-        f"[bold cyan]Multi-Framework Analysis[/bold cyan]\n"
-        f"Symbol: [bold]{symbol}[/bold]",
+        f"[bold cyan]Multi-Framework Analysis[/bold cyan]\n{detail}",
         title="Mulberry",
         border_style="cyan"
     ))
 
-    generator = ReportGenerator()
+    generator = ReportGenerator(profile=profile)
 
     with Progress(
         SpinnerColumn(),
@@ -126,7 +134,7 @@ def analyze(symbol: str, output: str, open_browser: bool):
         async def generate():
             try:
                 progress.update(task, description="[cyan]Running valuation analysis...")
-                report_path = await generator.generate_report(symbol, output)
+                report_path = await generator.generate_report(symbol, output, peers=peer_list)
                 progress.update(task, description="[green]✓ Report ready!")
                 return report_path
             except Exception as e:

@@ -53,8 +53,11 @@
 <ul>
   <li><a href="#summary">Summary</a></li>
   <li><a href="#frameworks">Frameworks</a></li>
+  {% if peer_table %}<li><a href="#peers">Peer-Relative</a></li>{% endif %}
   <li><a href="#valuation">Valuation</a></li>
   <li><a href="#dcf">DCF</a></li>
+  <li><a href="#multiples">Multiples</a></li>
+  {% if forward_has_data %}<li><a href="#forward">Forward View</a></li>{% endif %}
   <li><a href="#safety">Safety Margin</a></li>
   {% if price_chart %}<li><a href="#price">Price &amp; Trend</a></li>{% endif %}
   <li><a href="#health">Financial Health</a></li>
@@ -137,12 +140,35 @@
   <div class="section-header">
     <span class="section-title">Multi-Framework Scorecard</span>
     <span class="section-tag">5 Lenses</span>
+    <span class="section-tag">{{ profile_label }} weighting</span>
   </div>
   <div class="chart-wrap">{{ radar_chart | safe }}</div>
   <div style="border:1px solid var(--slate-200); border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow);">
     {{ framework_table | safe }}
   </div>
+  <p style="font-size:12px; color:var(--slate-500); margin-top:10px;">
+    Lens weights reflect the <strong>{{ profile_label }}</strong> investor profile.
+  </p>
 </div>
+
+<!-- ── Peer-Relative Comparison ────────────────────── -->
+{% if peer_table %}
+<div class="report-section" id="peers">
+  <div class="section-header">
+    <span class="section-title">Peer-Relative Comparison</span>
+    <span class="section-tag">{{ "%.0f"|format(peer_overall_percentile * 100) }}th pct</span>
+  </div>
+  <p style="font-size:13px; color:var(--slate-500); line-height:1.6; margin-bottom:12px;">
+    {{ symbol }} ranked against peers ({{ peer_symbols }}), metric by metric.
+    Percentile is the share of peers the target beats on each metric — margins,
+    returns, growth, and valuation multiples are each judged relative to this set
+    rather than against fixed thresholds.
+  </p>
+  <div style="border:1px solid var(--slate-200); border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow);">
+    {{ peer_table | safe }}
+  </div>
+</div>
+{% endif %}
 
 <!-- ── Intrinsic Value Estimates ──────────────────── -->
 <div class="report-section" id="valuation">
@@ -280,6 +306,41 @@
   </p>
   {% endif %}
 </div>
+
+<!-- ── Relative-Valuation Multiples ────────────────── -->
+{% if multiples_table %}
+<div class="report-section" id="multiples">
+  <div class="section-header">
+    <span class="section-title">Relative-Valuation Multiples</span>
+    <span class="section-tag">Enterprise &amp; Cash Flow</span>
+  </div>
+  <p style="font-size:13px; color:var(--slate-500); line-height:1.6; margin-bottom:12px;">
+    Enterprise- and cash-flow-based multiples that complement the absolute
+    intrinsic-value methods above. Most useful compared against sector peers.
+  </p>
+  <div style="border:1px solid var(--slate-200); border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow);">
+    {{ multiples_table | safe }}
+  </div>
+</div>
+{% endif %}
+
+<!-- ── Forward-Looking View ────────────────────────── -->
+{% if forward_has_data %}
+<div class="report-section" id="forward">
+  <div class="section-header">
+    <span class="section-title">Forward-Looking View</span>
+    <span class="section-tag">Analyst Estimates</span>
+  </div>
+  <p style="font-size:13px; color:var(--slate-500); line-height:1.6; margin-bottom:12px;">
+    The market's forward view — analyst consensus, forward multiples, and price
+    targets. Shown as context only; estimates are noisy and do <strong>not</strong>
+    feed the composite score.
+  </p>
+  <div style="border:1px solid var(--slate-200); border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow);">
+    {{ forward_table | safe }}
+  </div>
+</div>
+{% endif %}
 
 <!-- ── Margin of Safety ────────────────────────────── -->
 <div class="report-section" id="safety">

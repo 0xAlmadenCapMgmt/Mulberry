@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="mulberry",
-    version="0.4.0",
+    version="0.5.0",
     author="Almaden Capital Management",
     description="Multi-framework stock analysis and report generator",
     long_description=long_description,

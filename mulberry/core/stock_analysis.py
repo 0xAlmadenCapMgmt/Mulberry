@@ -18,7 +18,10 @@ from .dcf import DCFValuator
 from .dividend import DividendAnalyzer
 from .technicals import MomentumAnalyzer
 from .composite import CompositeScorer
+from .multiples import compute_valuation_multiples
+from .forward import extract_forward_context
 from . import data_quality
+from . import relative
 
 logger = get_logger(__name__)
 
@@ -32,7 +35,11 @@ class StockAnalyzer:
     and returns a structured result dict for report generation.
     """
 
-    def __init__(self, raw_cache: Optional[RawDataCache] = None):
+    def __init__(
+        self,
+        raw_cache: Optional[RawDataCache] = None,
+        profile: str = "balanced",
+    ):
         self.yahoo = YahooFinanceAPI()
         self.raw_cache = raw_cache or RawDataCache(
             config.cache_dir, config.cache_ttl_fundamentals
@@ -43,14 +50,18 @@ class StockAnalyzer:
         self.dcf_engine = DCFValuator()
         self.dividend_engine = DividendAnalyzer()
         self.momentum_engine = MomentumAnalyzer()
-        self.composite_engine = CompositeScorer()
+        self.composite_engine = CompositeScorer(profile)
 
-    async def analyze(self, symbol: str) -> Dict[str, Any]:
+    async def analyze(
+        self, symbol: str, peers: Optional[list] = None
+    ) -> Dict[str, Any]:
         """
         Perform comprehensive stock analysis.
 
         Runs all yfinance network calls in a single background thread to keep
         the async CLI responsive, then processes the results synchronously.
+        When `peers` are given, also builds a peer-relative comparison (each
+        peer fetched through the same cached path).
         """
         logger.info(f"Starting analysis for {symbol}")
 
@@ -60,7 +71,14 @@ class StockAnalyzer:
             logger.error(f"Data fetch failed for {symbol}: {e}")
             raise Exception(f"Failed to fetch data for {symbol}: {e}")
 
-        return self._build_analysis(symbol.upper(), raw)
+        result = self._build_analysis(symbol.upper(), raw)
+
+        if peers:
+            result["peer_comparison"] = await asyncio.to_thread(
+                self._peer_comparison, symbol.upper(), raw, peers
+            )
+
+        return result
 
     # ------------------------------------------------------------------
     # Data fetching
@@ -167,6 +185,20 @@ class StockAnalyzer:
         cashflow_annual = cashflow_data.get("annual", [])
         fcf_history = [r.get("freeCashFlow", 0) for r in cashflow_annual]
 
+        # --- Relative-valuation multiples & forward-looking context ---
+        enterprise_value = float(info.get("enterpriseValue") or 0)
+        latest_ebitda = income_annual[0].get("ebitda", 0) if income_annual else 0
+        latest_revenue = income_annual[0].get("totalRevenue", 0) if income_annual else 0
+        latest_fcf = fcf_history[0] if fcf_history else 0
+        multiples = compute_valuation_multiples(
+            enterprise_value=enterprise_value,
+            ebitda=latest_ebitda,
+            revenue=latest_revenue,
+            market_cap=market_cap,
+            free_cash_flow=latest_fcf,
+        )
+        forward = extract_forward_context(info, current_price)
+
         quality = self.quality_engine.analyze(stock_data, income_annual, cashflow_annual)
         growth = self.growth_engine.analyze(stock_data, income_annual, cashflow_annual)
         dividend = self.dividend_engine.analyze(stock_data, cashflow_annual, raw["dividends"])
@@ -240,6 +272,9 @@ class StockAnalyzer:
             },
             "recommendation": composite.recommendation,
             "graham_recommendation": valuation.recommendation,
+            "profile": composite.profile,
+            "multiples": multiples,
+            "forward": forward,
             "data_confidence": confidence,
             "defensive_checklist": valuation.defensive_checklist,
             "enterprising_checklist": valuation.enterprise_checklist,
@@ -459,3 +494,105 @@ class StockAnalyzer:
             candidates.append(valuation.ncav_per_share * (2 / 3))
         valid = [v for v in candidates if v > 0]
         return statistics.mean(valid) if valid else 0.0
+
+    # ------------------------------------------------------------------
+    # Peer-relative comparison
+    # ------------------------------------------------------------------
+
+    def _peer_comparison(self, symbol: str, raw: Dict, peers: list):
+        """Build a PeerComparison of `symbol` against `peers`.
+
+        The target snapshot reuses the already-fetched `raw`; each peer is
+        fetched through the cached path. Peers that fail to resolve or duplicate
+        the target are skipped. Returns None when no peer snapshot is usable.
+        """
+        target_snapshot = self._snapshot_from_raw(symbol, raw)
+        if target_snapshot is None:
+            return None
+
+        seen = {symbol.upper()}
+        peer_snapshots = []
+        for peer in peers:
+            p = peer.strip().upper()
+            if not p or p in seen:
+                continue
+            seen.add(p)
+            snap = self._compute_peer_snapshot(p)
+            if snap is not None:
+                peer_snapshots.append(snap)
+
+        if not peer_snapshots:
+            logger.warning(f"No usable peer data for {symbol}; skipping comparison")
+            return None
+
+        return relative.compare(target_snapshot, peer_snapshots)
+
+    def _compute_peer_snapshot(self, symbol: str):
+        """Fetch (cached) and build a MetricSnapshot for one peer; None on failure."""
+        try:
+            raw = self._fetch_yf_data(symbol)
+        except Exception as e:
+            logger.warning(f"Failed to fetch peer {symbol}: {e}")
+            return None
+        return self._snapshot_from_raw(symbol, raw)
+
+    def _snapshot_from_raw(self, symbol: str, raw: Dict):
+        """Assemble a comparable MetricSnapshot from a raw yfinance bundle."""
+        try:
+            info = raw.get("info", {}) or {}
+            income_annual = self._parse_income_stmt(raw.get("income_stmt")).get("annual", [])
+            cashflow_annual = self._parse_cashflow(raw.get("cashflow")).get("annual", [])
+            balance = self._parse_balance_sheet(
+                raw.get("quarterly_balance"), raw.get("annual_balance")
+            )["quarterly"]
+
+            metrics = {
+                "roe": float(info.get("returnOnEquity") or 0),
+                "pe_ratio": float(info.get("trailingPE") or 0),
+                "eps": float(info.get("trailingEps") or 0),
+            }
+            quality = self.quality_engine.analyze(metrics, income_annual, cashflow_annual)
+            growth = self.growth_engine.analyze(metrics, income_annual, cashflow_annual)
+
+            multiples = compute_valuation_multiples(
+                enterprise_value=float(info.get("enterpriseValue") or 0),
+                ebitda=income_annual[0].get("ebitda", 0) if income_annual else 0,
+                revenue=income_annual[0].get("totalRevenue", 0) if income_annual else 0,
+                market_cap=float(info.get("marketCap") or 0),
+                free_cash_flow=cashflow_annual[0].get("freeCashFlow", 0) if cashflow_annual else 0,
+            )
+
+            debt_equity = self._calculate_debt_equity(balance)
+            dividend_yield = self._normalize_dividend_yield(info)
+            return self._assemble_snapshot(
+                symbol, quality, growth, multiples,
+                metrics["pe_ratio"], dividend_yield, debt_equity,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to build metric snapshot for {symbol}: {e}")
+            return None
+
+    @staticmethod
+    def _assemble_snapshot(symbol, quality, growth, multiples,
+                           pe_ratio, dividend_yield, debt_equity):
+        """Build a relative.MetricSnapshot; 0/sentinel values become None (N/A)."""
+        def clean(x):
+            # 0.0 in this pipeline means "not computed"; negatives are real values.
+            return None if x is None or x == 0.0 else float(x)
+
+        values = {
+            "gross_margin": clean(quality.gross_margin),
+            "operating_margin": clean(quality.operating_margin),
+            "net_margin": clean(quality.net_margin),
+            "roe": clean(quality.roe),
+            "revenue_cagr": clean(growth.revenue_cagr),
+            "eps_cagr": clean(growth.eps_cagr),
+            "pe_ratio": clean(pe_ratio),
+            "ev_ebitda": clean(multiples.ev_ebitda),
+            "ev_sales": clean(multiples.ev_sales),
+            "p_fcf": clean(multiples.p_fcf),
+            "dividend_yield": clean(dividend_yield),
+            # 999.0 is the "no equity" sentinel from _calculate_debt_equity.
+            "debt_equity": debt_equity if 0 < debt_equity < 900 else None,
+        }
+        return relative.MetricSnapshot(symbol=symbol, values=values)

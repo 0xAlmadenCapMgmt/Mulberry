@@ -95,3 +95,34 @@ def test_lens_structures_present(scorer):
         assert key in result.lens_scores
         assert key in result.lens_ratings
         assert key in result.lens_verdicts
+
+
+# --- Investor-style weight profiles ----------------------------------------
+
+def test_all_profiles_sum_to_one():
+    for name, weights in CompositeScorer.PROFILES.items():
+        assert sum(weights.values()) == pytest.approx(1.0), f"{name} weights must sum to 1.0"
+
+
+def test_profile_changes_weights_and_score():
+    args = dict(
+        value_margin_of_safety=0.0,
+        dcf_margin_of_safety=0.0,
+        quality=_quality(80),
+        growth=_growth(60),
+        dividend=_dividend(20, pays=True),
+        momentum=_momentum(40),
+    )
+    balanced = CompositeScorer("balanced").score(**args)
+    deep_value = CompositeScorer("deep_value").score(**args)
+
+    assert balanced.profile == "balanced"
+    assert deep_value.profile == "deep_value"
+    assert deep_value.weights["value"] == pytest.approx(0.45)
+    # Different weightings must produce a different composite for the same inputs
+    assert balanced.overall_score != pytest.approx(deep_value.overall_score)
+
+
+def test_unknown_profile_raises():
+    with pytest.raises(ValueError):
+        CompositeScorer("nonsense")

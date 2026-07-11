@@ -145,6 +145,15 @@ def info_dict():
         "fiftyTwoWeekHigh": 170.0,
         "fiftyTwoWeekLow": 120.0,
         "enterpriseValue": 2_500_000_000_000,
+        # Forward-looking / analyst-estimate fields
+        "forwardPE": 22.0,
+        "pegRatio": 1.8,
+        "recommendationKey": "buy",
+        "recommendationMean": 2.2,
+        "numberOfAnalystOpinions": 25,
+        "targetMeanPrice": 175.0,
+        "targetHighPrice": 200.0,
+        "targetLowPrice": 150.0,
         "website": "https://example.com",
         "longBusinessSummary": "A synthetic test company.",
     }

@@ -10,7 +10,7 @@ from rich.text import Text
 from pathlib import Path
 
 from .reports.generator import ReportGenerator
-from .cache.database import CacheManager
+from .cache.raw_cache import RawDataCache
 from .utils.config import config
 from .utils.logger import get_logger
 from .utils.validators import validate_ticker, normalize_ticker
@@ -59,7 +59,7 @@ def run_async(coro):
 
 
 @click.group()
-@click.version_option(version='0.3.0', prog_name='Mulberry')
+@click.version_option(version='0.4.0', prog_name='Mulberry')
 def cli():
     """
     Mulberry — Multi-Framework Stock Analysis
@@ -114,8 +114,7 @@ def analyze(symbol: str, output: str, open_browser: bool):
         border_style="cyan"
     ))
 
-    cache_manager = CacheManager(str(config.cache_db_path))
-    generator = ReportGenerator(cache_manager)
+    generator = ReportGenerator()
 
     with Progress(
         SpinnerColumn(),
@@ -152,14 +151,11 @@ def analyze(symbol: str, output: str, open_browser: bool):
 
 
 @cli.command()
-@click.option('--all', '-a', 'clear_all', is_flag=True, help='Clear all cache (including valid entries)')
-def clear_cache(clear_all: bool):
+def clear_cache():
     """
-    Clear cache entries.
-
-    By default removes only expired entries. Use --all to clear everything.
+    Clear cached ticker data so the next run fetches fresh from Yahoo.
     """
-    cache_manager = CacheManager(str(config.cache_db_path))
+    raw_cache = RawDataCache(config.cache_dir, config.cache_ttl_fundamentals)
 
     with Progress(
         SpinnerColumn(),
@@ -167,15 +163,12 @@ def clear_cache(clear_all: bool):
         console=console
     ) as progress:
         task = progress.add_task("[cyan]Clearing cache...", total=None)
-
-        if clear_all:
-            cache_manager.clear_all()
-            progress.update(task, description="[green]✓ All cache cleared")
-            console.print("\n[green]✓ Entire cache cleared[/green]")
-        else:
-            cache_manager.clear_expired()
-            progress.update(task, description="[green]✓ Expired entries removed")
-            console.print("\n[green]✓ Expired cache entries removed[/green]")
+        removed = raw_cache.clear()
+        progress.update(task, description="[green]✓ Cache cleared")
+        console.print(
+            f"\n[green]✓ Cache cleared[/green] "
+            f"([cyan]{removed}[/cyan] cached tickers removed)"
+        )
 
 
 @cli.command()
@@ -187,9 +180,8 @@ def info():
     table.add_column("Setting", style="cyan", width=30)
     table.add_column("Value", style="white")
 
-    table.add_row("Cache Database", str(config.cache_db_path))
-    table.add_row("Quote Cache TTL", f"{config.cache_ttl_quotes}s")
-    table.add_row("Fundamentals Cache TTL", f"{config.cache_ttl_fundamentals}s")
+    table.add_row("Cache Directory", str(config.cache_dir / "raw"))
+    table.add_row("Cache TTL", f"{config.cache_ttl_fundamentals}s")
     table.add_row("AAA Bond Yield (for valuation)", f"{config.aaa_bond_yield * 100:.1f}%")
     table.add_row("", "")
     table.add_row("Output Directory", str(config.output_dir))

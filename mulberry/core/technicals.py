@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 import pandas as pd
 
 from ..utils.logger import get_logger
+from ..utils.returns import compute_return_metrics
 
 logger = get_logger(__name__)
 
@@ -30,6 +31,9 @@ class MomentumAssessment:
     range_position_52w: float        # 0 = at low, 1 = at high
     return_3m: float
     return_6m: float
+    volatility_annual: float = 0.0   # annualized stdev of daily returns
+    max_drawdown: float = 0.0        # worst peak-to-trough over the window
+    sharpe_ratio: float = 0.0        # annualized return / volatility
     checks: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -68,6 +72,7 @@ class MomentumAnalyzer:
         rsi = self._rsi(closes)
         return_3m = self._trailing_return(closes, 63)
         return_6m = self._trailing_return(closes, 126)
+        risk = compute_return_metrics(closes)
 
         low_52w = float(info_metrics.get("price_52w_low", 0) or 0)
         high_52w = float(info_metrics.get("price_52w_high", 0) or 0)
@@ -140,6 +145,9 @@ class MomentumAnalyzer:
             range_position_52w=range_position,
             return_3m=return_3m,
             return_6m=return_6m,
+            volatility_annual=risk["volatility"],
+            max_drawdown=risk["max_drawdown"],
+            sharpe_ratio=risk["sharpe_ratio"],
             checks=checks,
         )
 

@@ -33,10 +33,8 @@ class Config:
         self.fmp_api_key = os.getenv('FMP_API_KEY', '')
         self.sec_user_agent = os.getenv('SEC_USER_AGENT', 'FinancialAnalysis contact@example.com')
 
-        # Cache settings (in seconds)
-        self.cache_ttl_quotes = int(os.getenv('CACHE_TTL_QUOTES', '300'))
+        # Cache settings (in seconds) — TTL for the pickled raw-data bundle
         self.cache_ttl_fundamentals = int(os.getenv('CACHE_TTL_FUNDAMENTALS', '86400'))
-        self.cache_ttl_filings = int(os.getenv('CACHE_TTL_FILINGS', '604800'))
 
         # Valuation parameters
         # AAA corporate bond yield used in the growth-adjusted earnings formula.
@@ -61,11 +59,6 @@ class Config:
             errors.append(f"Output directory missing: {self.output_dir}")
 
         return (len(errors) == 0, errors)
-
-    @property
-    def cache_db_path(self) -> Path:
-        """Path to SQLite cache database"""
-        return self.cache_dir / "cache.db"
 
 
 # Singleton instance

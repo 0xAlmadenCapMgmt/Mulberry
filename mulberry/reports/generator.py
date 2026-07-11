@@ -10,7 +10,6 @@ import pandas as pd
 
 from ..core.stock_analysis import StockAnalyzer
 from ..visualization.charts import ChartBuilder
-from ..cache.database import CacheManager
 from ..utils.logger import get_logger
 from ..utils.config import config
 from ..utils.formatters import format_currency, format_percent
@@ -41,9 +40,8 @@ class ReportGenerator:
     valuation analysis, and financial health scorecards.
     """
 
-    def __init__(self, cache_manager: Optional[CacheManager] = None):
-        self.cache = cache_manager or CacheManager(str(config.cache_db_path))
-        self.analyzer = StockAnalyzer(self.cache)
+    def __init__(self, analyzer: Optional[StockAnalyzer] = None):
+        self.analyzer = analyzer or StockAnalyzer()
         self.chart_builder = ChartBuilder()
 
         self.jinja_env = jinja2.Environment(
@@ -143,6 +141,8 @@ class ReportGenerator:
             analysis["enterprising_checklist"]
         )
         framework_table = self._format_framework_table(composite)
+        confidence = analysis.get("data_confidence")
+        confidence_table = self._format_confidence_table(confidence)
         quality_table = self._format_checks_table(quality.checks)
         growth_table = self._format_checks_table(growth.checks)
         dividend_table = self._format_checks_table(dividend.checks)
@@ -199,6 +199,9 @@ class ReportGenerator:
             "dividend_rating": dividend.rating,
             "momentum_score": momentum.score,
             "momentum_signal": momentum.signal,
+            "momentum_volatility": momentum.volatility_annual,
+            "momentum_max_drawdown": momentum.max_drawdown,
+            "momentum_sharpe": momentum.sharpe_ratio,
             # Metrics
             "eps": metrics.get("eps", 0),
             "book_value": metrics.get("book_value", 0),
@@ -232,6 +235,10 @@ class ReportGenerator:
             "health_table": health_table,
             "opportunities_table": opportunities_table,
             "framework_table": framework_table,
+            "data_confidence_level": confidence.level if confidence else "",
+            "data_confidence_score": confidence.score if confidence else 0,
+            "data_confidence_notes": confidence.notes if confidence else [],
+            "data_confidence_table": confidence_table,
             "quality_table": quality_table,
             "growth_table": growth_table,
             "dividend_table": dividend_table,
@@ -453,6 +460,51 @@ class ReportGenerator:
             '<table class="data-table">'
             "<thead><tr><th>Criterion</th><th>Target</th><th>Actual</th><th>Result</th></tr></thead>"
             f"<tbody>{rows}</tbody>"
+            "</table>"
+        )
+
+    @staticmethod
+    def _format_confidence_table(confidence) -> str:
+        """Per-lens data-availability table."""
+        if confidence is None:
+            return ""
+
+        lens_names = {
+            "value": "Value (Graham + DCF)",
+            "quality": "Business Quality",
+            "growth": "Growth / GARP",
+            "dcf": "DCF",
+            "dividend": "Dividend",
+            "momentum": "Momentum",
+        }
+        rows = ""
+        for key, label in lens_names.items():
+            lens = confidence.lenses.get(key)
+            if lens is None:
+                continue
+            if lens.score >= 0.8:
+                badge_class = "badge-pass"
+            elif lens.score >= 0.5:
+                badge_class = "badge-hold"
+            else:
+                badge_class = "badge-fail"
+            missing = ", ".join(lens.missing) if lens.missing else "&mdash;"
+            rows += (
+                f"<tr>"
+                f"<td><strong>{label}</strong></td>"
+                f'<td><span class="badge {badge_class}">{lens.present}/{lens.total}</span></td>'
+                f'<td style="font-size:12px;color:#64748b;">{missing}</td>'
+                f"</tr>"
+            )
+
+        return (
+            '<table class="data-table">'
+            "<thead><tr><th>Framework</th><th>Inputs Available</th>"
+            "<th>Missing</th></tr></thead>"
+            f"<tbody>{rows}</tbody>"
+            f'<tfoot><tr><td><strong>Overall Confidence</strong></td>'
+            f'<td colspan="2"><strong>{confidence.level}</strong> '
+            f"({confidence.score:.0%} of inputs available)</td></tr></tfoot>"
             "</table>"
         )
 

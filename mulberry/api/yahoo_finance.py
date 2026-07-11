@@ -6,6 +6,7 @@ from typing import Optional, Dict, Any
 from datetime import datetime, timedelta
 
 from ..utils.logger import get_logger
+from ..utils.returns import compute_return_metrics
 
 logger = get_logger(__name__)
 
@@ -25,6 +26,25 @@ class YahooFinanceAPI:
     def __init__(self):
         """Initialize Yahoo Finance API client"""
         pass
+
+    def get_raw_bundle(self, symbol: str, history_period: str = "2y") -> Dict[str, Any]:
+        """Fetch the full raw payload the analysis pipeline consumes.
+
+        This is the single place that constructs a yfinance Ticker and reads
+        its statement/history/dividend attributes, so there is one Yahoo access
+        path rather than duplicated `yf.Ticker` logic across the codebase.
+        """
+        ticker = yf.Ticker(symbol.upper())
+        return {
+            "info": ticker.info or {},
+            "income_stmt": ticker.income_stmt,
+            "quarterly_balance": ticker.quarterly_balance_sheet,
+            "annual_balance": ticker.balance_sheet,
+            "cashflow": ticker.cashflow,
+            "dividends": ticker.dividends,
+            # 2 years of history so the 200-day moving average is available
+            "history": ticker.history(period=history_period),
+        }
 
     def get_info(self, symbol: str) -> Dict[str, Any]:
         """
@@ -227,36 +247,13 @@ class YahooFinanceAPI:
             if df.empty:
                 raise Exception(f"No price data available for {symbol}")
 
-            start_price = df['Close'].iloc[0]
-            end_price = df['Close'].iloc[-1]
-
-            # Total return
-            total_return = (end_price - start_price) / start_price
-
-            # Annualized return
-            years = (end_date - start_date).days / 365.25
-            annualized_return = (end_price / start_price) ** (1 / years) - 1
-
-            # Volatility (annualized standard deviation)
-            daily_returns = df['Close'].pct_change().dropna()
-            volatility = daily_returns.std() * (252 ** 0.5)  # Annualize
-
-            # Max drawdown
-            cumulative = (1 + daily_returns).cumprod()
-            running_max = cumulative.expanding().max()
-            drawdown = (cumulative - running_max) / running_max
-            max_drawdown = drawdown.min()
-
-            return {
-                "total_return": total_return,
-                "annualized_return": annualized_return,
-                "volatility": volatility,
-                "max_drawdown": max_drawdown,
-                "sharpe_ratio": annualized_return / volatility if volatility > 0 else 0,
-                "start_price": start_price,
-                "end_price": end_price,
-                "days": (end_date - start_date).days
-            }
+            metrics = compute_return_metrics(df['Close'])
+            metrics.update({
+                "start_price": float(df['Close'].iloc[0]),
+                "end_price": float(df['Close'].iloc[-1]),
+                "days": (end_date - start_date).days,
+            })
+            return metrics
 
         except Exception as e:
             logger.error(f"Error calculating returns for {symbol}: {e}")

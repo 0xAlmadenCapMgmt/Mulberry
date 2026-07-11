@@ -5,10 +5,10 @@ import statistics
 from typing import Dict, Any, Optional
 from datetime import datetime
 
-import yfinance as yf
 import pandas as pd
 
-from ..cache.database import CacheManager
+from ..api.yahoo_finance import YahooFinanceAPI
+from ..cache.raw_cache import RawDataCache
 from ..utils.logger import get_logger
 from ..utils.config import config
 from .graham import GrahamAnalyzer
@@ -18,6 +18,7 @@ from .dcf import DCFValuator
 from .dividend import DividendAnalyzer
 from .technicals import MomentumAnalyzer
 from .composite import CompositeScorer
+from . import data_quality
 
 logger = get_logger(__name__)
 
@@ -31,8 +32,11 @@ class StockAnalyzer:
     and returns a structured result dict for report generation.
     """
 
-    def __init__(self, cache_manager: Optional[CacheManager] = None):
-        self.cache = cache_manager or CacheManager(str(config.cache_db_path))
+    def __init__(self, raw_cache: Optional[RawDataCache] = None):
+        self.yahoo = YahooFinanceAPI()
+        self.raw_cache = raw_cache or RawDataCache(
+            config.cache_dir, config.cache_ttl_fundamentals
+        )
         self.valuation_engine = GrahamAnalyzer()
         self.quality_engine = QualityAnalyzer()
         self.growth_engine = GrowthAnalyzer()
@@ -63,18 +67,18 @@ class StockAnalyzer:
     # ------------------------------------------------------------------
 
     def _fetch_yf_data(self, symbol: str) -> Dict:
-        """Synchronous yfinance fetch — runs in a thread pool."""
-        ticker = yf.Ticker(symbol)
-        return {
-            "info": ticker.info or {},
-            "income_stmt": ticker.income_stmt,
-            "quarterly_balance": ticker.quarterly_balance_sheet,
-            "annual_balance": ticker.balance_sheet,
-            "cashflow": ticker.cashflow,
-            "dividends": ticker.dividends,
-            # 2 years of history so the 200-day moving average is available
-            "history": ticker.history(period="2y"),
-        }
+        """Fetch the raw yfinance bundle, served from cache when fresh.
+
+        Runs in a thread pool. All Yahoo access goes through YahooFinanceAPI so
+        there is a single access path; the pickle cache avoids re-downloading on
+        repeat runs within the fundamentals TTL.
+        """
+        cached = self.raw_cache.get(symbol)
+        if cached is not None:
+            return cached
+        bundle = self.yahoo.get_raw_bundle(symbol)
+        self.raw_cache.set(symbol, bundle)
+        return bundle
 
     # ------------------------------------------------------------------
     # Analysis pipeline
@@ -97,7 +101,7 @@ class StockAnalyzer:
         pb_ratio = float(info.get("priceToBook") or 0)
         market_cap = float(info.get("marketCap") or 0)
         roe = float(info.get("returnOnEquity") or 0)
-        dividend_yield = float(info.get("dividendYield") or 0)
+        dividend_yield = self._normalize_dividend_yield(info)
         beta = float(info.get("beta") or 0)
         price_52w_high = float(info.get("fiftyTwoWeekHigh") or 0)
         price_52w_low = float(info.get("fiftyTwoWeekLow") or 0)
@@ -186,6 +190,28 @@ class StockAnalyzer:
             momentum=momentum,
         )
 
+        # --- Data confidence: how much required input was actually available ---
+        history_rows = 0
+        hist = raw.get("history")
+        if isinstance(hist, pd.DataFrame) and "Close" in hist:
+            history_rows = int(hist["Close"].dropna().shape[0])
+        confidence = data_quality.assess(
+            eps=eps,
+            book_value=book_value,
+            shares_outstanding=shares_outstanding,
+            current_assets=current_assets,
+            total_liabilities=total_liabilities,
+            roe=roe,
+            pe_ratio=pe_ratio,
+            earnings_history=earnings_history,
+            income_annual=income_annual,
+            cashflow_annual=cashflow_annual,
+            fcf_history=fcf_history,
+            history_rows=history_rows,
+            pays_dividend=dividend.pays_dividend,
+            dividend_years=dividend_years,
+        )
+
         return {
             "symbol": symbol,
             "analysis_date": datetime.now().isoformat(),
@@ -214,6 +240,7 @@ class StockAnalyzer:
             },
             "recommendation": composite.recommendation,
             "graham_recommendation": valuation.recommendation,
+            "data_confidence": confidence,
             "defensive_checklist": valuation.defensive_checklist,
             "enterprising_checklist": valuation.enterprise_checklist,
             "frameworks": {
@@ -357,6 +384,21 @@ class StockAnalyzer:
     # ------------------------------------------------------------------
     # Derived metric helpers
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _normalize_dividend_yield(info: Dict) -> float:
+        """Return dividend yield as a clean decimal (e.g. 0.0034 for 0.34%).
+
+        yfinance's `dividendYield` field is inconsistent across versions — current
+        releases return it in percent units (0.34 meaning 0.34%, not 34%). Prefer
+        `trailingAnnualDividendYield`, which is an unambiguous decimal; otherwise
+        fall back to `dividendYield` interpreted as percent units.
+        """
+        trailing = info.get("trailingAnnualDividendYield")
+        if trailing:
+            return float(trailing)
+        raw = float(info.get("dividendYield") or 0)
+        return raw / 100 if raw else 0.0
 
     @staticmethod
     def _calculate_current_ratio(balance: Dict) -> float:

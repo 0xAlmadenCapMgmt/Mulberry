@@ -1,5 +1,5 @@
-"""Caching layer with SQLite backend and TTL support"""
+"""Caching layer: pickle-backed raw-data cache with TTL support."""
 
-from .database import CacheManager
+from .raw_cache import RawDataCache
 
-__all__ = ['CacheManager']
+__all__ = ['RawDataCache']

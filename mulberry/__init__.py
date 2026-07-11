@@ -3,5 +3,5 @@ Mulberry — Multi-Framework Stock Analysis
 Value, quality, growth, dividend, and momentum analysis with HTML reports
 """
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 __author__ = "Almaden Capital Management"

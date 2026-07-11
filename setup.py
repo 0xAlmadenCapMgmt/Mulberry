@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="mulberry",
-    version="0.3.0",
+    version="0.4.0",
     author="Almaden Capital Management",
     description="Multi-framework stock analysis and report generator",
     long_description=long_description,
@@ -30,7 +30,6 @@ setup(
         "yfinance>=0.2.0",
         "plotly>=5.18.0",
         "jinja2>=3.1.0",
-        "sqlalchemy>=2.0.0",
         "python-dotenv>=1.0.0",
         "pyyaml>=6.0",
         "requests>=2.31.0",

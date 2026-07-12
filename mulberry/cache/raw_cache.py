@@ -23,8 +23,8 @@ logger = get_logger(__name__)
 class RawDataCache:
     """One pickle file per symbol, expired by mtime against a TTL."""
 
-    def __init__(self, cache_dir, ttl_seconds: int):
-        self.cache_dir = Path(cache_dir) / "raw"
+    def __init__(self, cache_dir, ttl_seconds: int, namespace: str = "raw"):
+        self.cache_dir = Path(cache_dir) / namespace
         self.ttl = ttl_seconds
         self._disabled = os.getenv("MULBERRY_DISABLE_CACHE") == "1"
         if not self._disabled:

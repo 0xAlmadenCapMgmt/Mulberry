@@ -61,6 +61,7 @@ class ReportGenerator:
         symbol: str,
         output_path: Optional[str] = None,
         peers: Optional[list] = None,
+        include_filings: bool = False,
     ) -> str:
         """
         Generate a comprehensive fundamental analysis HTML report.
@@ -69,13 +70,16 @@ class ReportGenerator:
             symbol: Stock ticker symbol
             output_path: Optional output file path
             peers: Optional list of peer tickers for relative comparison
+            include_filings: Attach an SEC EDGAR filings section when available
 
         Returns:
             Path to generated HTML report
         """
         logger.info(f"Generating report for {symbol}")
 
-        analysis = await self.analyzer.analyze(symbol, peers=peers)
+        analysis = await self.analyzer.analyze(
+            symbol, peers=peers, include_filings=include_filings
+        )
 
         valuation = analysis["valuation"]
         margins = valuation["margins_of_safety"]
@@ -154,6 +158,18 @@ class ReportGenerator:
         forward_table = self._format_forward_table(forward, analysis["current_price"])
         peer_comparison = analysis.get("peer_comparison")
         peer_table = self._format_peer_table(peer_comparison)
+
+        # SEC filings (optional context section)
+        filings = analysis.get("filings")
+        filings_chart = None
+        if filings is not None and filings.trends:
+            filings_chart = self.chart_builder.create_filings_trend_chart(
+                filings.trends, symbol.upper()
+            )
+        filings_timeline_table = self._format_filings_timeline(filings)
+        filings_trends_table = self._format_filings_trends(filings)
+        filings_flags_html = self._format_red_flags(filings)
+
         confidence = analysis.get("data_confidence")
         confidence_table = self._format_confidence_table(confidence)
         quality_table = self._format_checks_table(quality.checks)
@@ -256,6 +272,19 @@ class ReportGenerator:
             "peer_table": peer_table,
             "peer_symbols": ", ".join(peer_comparison.peer_symbols) if peer_comparison else "",
             "peer_overall_percentile": peer_comparison.overall_percentile if peer_comparison else 0,
+            # SEC filings
+            "filings_available": filings is not None,
+            "filings_entity": filings.entity_name if filings else "",
+            "filings_freshness": filings.days_since_last_periodic if filings else None,
+            "filings_8k_count": filings.recent_8k_count if filings else 0,
+            "filings_flag_count": len(filings.red_flags) if filings else 0,
+            "filings_timeline_table": filings_timeline_table,
+            "filings_trends_table": filings_trends_table,
+            "filings_flags_html": filings_flags_html,
+            "filings_sections": filings.sections if filings else [],
+            "filings_chart": filings_chart.to_html(
+                include_plotlyjs=False, div_id="filings_chart", full_html=False
+            ) if filings_chart else None,
             "data_confidence_level": confidence.level if confidence else "",
             "data_confidence_score": confidence.score if confidence else 0,
             "data_confidence_notes": confidence.notes if confidence else [],
@@ -394,6 +423,83 @@ class ReportGenerator:
         "income": "Income",
         "quality_growth": "Quality Growth",
     }
+
+    @staticmethod
+    def _format_filings_timeline(filings) -> str:
+        """Recent 10-K / 10-Q / 8-K filing timeline."""
+        if filings is None or not filings.timeline:
+            return ""
+        rows = ""
+        for ref in filings.timeline:
+            items = f' <span style="color:#64748b;">({ref.items})</span>' if ref.items else ""
+            rows += (
+                f"<tr><td><strong>{ref.form}</strong>{items}</td>"
+                f"<td>{ref.filing_date}</td>"
+                f"<td>{ref.report_date}</td></tr>"
+            )
+        return (
+            '<table class="data-table">'
+            "<thead><tr><th>Form</th><th>Filed</th><th>Period</th></tr></thead>"
+            f"<tbody>{rows}</tbody></table>"
+        )
+
+    @staticmethod
+    def _format_filings_trends(filings) -> str:
+        """Multi-year structured trends with a favorable/unfavorable read."""
+        if filings is None or not filings.trends:
+            return ""
+        rows = ""
+        for t in filings.trends:
+            if t.unit == "shares":
+                latest = f"{t.latest / 1_000_000:,.0f}M sh"
+            else:
+                latest = _format_large(t.latest)
+            # Favorable if the direction matches what's good for this metric.
+            if t.direction == "Flat":
+                badge_class = "badge-neutral"
+            else:
+                good = (t.direction == "Rising") == t.higher_is_better
+                badge_class = "badge-pass" if good else "badge-fail"
+            rows += (
+                f"<tr><td><strong>{t.label}</strong></td>"
+                f"<td>{latest}</td>"
+                f"<td>{t.change_pct * 100:+.0f}%</td>"
+                f'<td><span class="badge {badge_class}">{t.direction}</span></td></tr>'
+            )
+        return (
+            '<table class="data-table">'
+            "<thead><tr><th>Metric</th><th>Latest</th><th>Δ over period</th>"
+            "<th>Trend</th></tr></thead>"
+            f"<tbody>{rows}</tbody></table>"
+        )
+
+    @staticmethod
+    def _format_red_flags(filings) -> str:
+        """Red-flag callout list; explicit 'none' note when clean."""
+        if filings is None:
+            return ""
+        if not filings.red_flags:
+            return (
+                '<p style="font-size:13px;color:#16a34a;">'
+                "✓ No going-concern, material-weakness, restatement, or notable "
+                "8-K red flags detected in recent filings.</p>"
+            )
+        severity_badge = {"high": "badge-fail", "medium": "badge-hold", "info": "badge-neutral"}
+        rows = ""
+        for flag in filings.red_flags:
+            badge = severity_badge.get(flag.severity, "badge-neutral")
+            rows += (
+                f"<tr>"
+                f'<td><span class="badge {badge}">{flag.severity.title()}</span></td>'
+                f"<td><strong>{flag.label}</strong></td>"
+                f'<td style="font-size:12px;color:#64748b;">{flag.detail}</td>'
+                f"</tr>"
+            )
+        return (
+            '<table class="data-table">'
+            "<thead><tr><th>Severity</th><th>Flag</th><th>Detail</th></tr></thead>"
+            f"<tbody>{rows}</tbody></table>"
+        )
 
     @staticmethod
     def _format_multiples_table(multiples) -> str:

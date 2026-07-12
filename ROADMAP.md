@@ -19,8 +19,8 @@ independently shippable.
 |-------|-------|----------------|--------|
 | 1 | Trust & Foundation | 0.4.0 | ✅ Complete |
 | 2 | Sharper Signal | 0.5.0 | ✅ Complete |
-| 3 | SEC Filings & Temporal Context | 0.6.0 | 🔜 Next |
-| 4 | AI Thesis Layer | 0.7.0 | ⬜ Planned |
+| 3 | SEC Filings & Temporal Context | 0.6.0 | ✅ Complete |
+| 4 | AI Thesis Layer | 0.7.0 | 🔜 Next |
 | 5 | Screening & Portfolio | 0.8.0 | ⬜ Planned |
 
 ---
@@ -85,7 +85,7 @@ ranking), `core/multiples.py`, `core/forward.py`, five named weight profiles in
 
 ---
 
-## Phase 3 — SEC Filings & Temporal Context ⬜ (v0.6.0)
+## Phase 3 — SEC Filings & Temporal Context ✅ (v0.6.0)
 
 Add SEC EDGAR as a second data source so analyses rest on trajectory and
 narrative, not a single yfinance snapshot. Filings provide **context and
@@ -108,6 +108,13 @@ exists.
   trend charts, red-flag callout, excerpts); a 7-day-TTL filings cache keeps
   repeat runs fast. Degrades gracefully — if EDGAR is unavailable the section is
   omitted and the rest of the report is unaffected.
+
+Delivered on branch `phase3-sec-filings`: `api/sec_edgar.py` (rate-limited EDGAR
+client), `core/filings.py` (timeline, XBRL trends, high-precision red-flag scan,
+MD&A/Risk-Factor extraction), a filings cache, and `analyze --filings/--no-filings`.
+The red-flag scan is deliberately conservative (SEC going-concern trigger with a
+negation guard; restatements via 8-K Item 4.02) to avoid false positives on
+healthy filers — deeper qualitative reading is handed to Phase 4.
 
 ---
 

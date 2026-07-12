@@ -64,6 +64,7 @@
   <li><a href="#lenses">Lens Details</a></li>
   <li><a href="#opportunities">Opportunities</a></li>
   {% if financial_trends_chart %}<li><a href="#financials">Financials</a></li>{% endif %}
+  {% if filings_available %}<li><a href="#filings">SEC Filings</a></li>{% endif %}
   <li><a href="#metrics">Key Metrics</a></li>
   <li><a href="#confidence">Data Confidence</a></li>
   <li><a href="#methodology">Methodology</a></li>
@@ -426,6 +427,53 @@
     <span class="section-tag">Annual</span>
   </div>
   <div class="chart-wrap">{{ financial_trends_chart | safe }}</div>
+</div>
+{% endif %}
+
+<!-- ── SEC Filings & Trends ────────────────────────── -->
+{% if filings_available %}
+<div class="report-section" id="filings">
+  <div class="section-header">
+    <span class="section-title">SEC Filings &amp; Trends</span>
+    {% if filings_freshness is not none %}<span class="section-tag">Last periodic filing {{ filings_freshness }}d ago</span>{% endif %}
+    {% if filings_8k_count %}<span class="section-tag">{{ filings_8k_count }} 8-K (12mo)</span>{% endif %}
+  </div>
+  <p style="font-size:13px; color:var(--slate-500); line-height:1.6; margin-bottom:12px;">
+    Context from {{ filings_entity or symbol }}'s SEC EDGAR filings — multi-year
+    trends, material-event flags, and management's own words. This section is
+    <strong>context only</strong> and does not change the composite score.
+  </p>
+
+  <!-- Red flags -->
+  <div style="margin-bottom:16px;">{{ filings_flags_html | safe }}</div>
+
+  {% if filings_chart %}
+  <div class="chart-wrap">{{ filings_chart | safe }}</div>
+  {% endif %}
+
+  {% if filings_trends_table %}
+  <h4 style="margin:16px 0 8px;">Multi-Year Trends (annual)</h4>
+  <div style="border:1px solid var(--slate-200); border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow);">
+    {{ filings_trends_table | safe }}
+  </div>
+  {% endif %}
+
+  {% if filings_timeline_table %}
+  <h4 style="margin:24px 0 8px;">Recent Filings</h4>
+  <div style="border:1px solid var(--slate-200); border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow);">
+    {{ filings_timeline_table | safe }}
+  </div>
+  {% endif %}
+
+  {% if filings_sections %}
+  <h4 style="margin:24px 0 8px;">From the Latest Filing</h4>
+  {% for section in filings_sections %}
+  <details style="border:1px solid var(--slate-200); border-radius:var(--radius); padding:12px 16px; margin-bottom:10px; box-shadow:var(--shadow);">
+    <summary style="cursor:pointer; font-weight:600;">{{ section.title }}</summary>
+    <p style="font-size:12px; color:var(--slate-600); line-height:1.7; margin-top:10px;">{{ section.excerpt }}</p>
+  </details>
+  {% endfor %}
+  {% endif %}
 </div>
 {% endif %}
 

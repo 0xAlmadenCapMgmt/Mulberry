@@ -22,6 +22,7 @@ independently shippable.
 | 3 | SEC Filings & Temporal Context | 0.6.0 | ✅ Complete |
 | 4 | AI Thesis Layer | 0.7.0 | 🔜 Next |
 | 5 | Screening & Portfolio | 0.8.0 | ⬜ Planned |
+| 6 | Web Front End | 0.9.0 | ⬜ Planned |
 
 ---
 
@@ -148,6 +149,22 @@ Scale trustworthy single-name analysis to a universe.
   candidate surfacing.
 - Watchlist / score history: persist composite + lens scores per symbol per run
   date, enabling score-over-time sparklines on the single-name report.
+
+---
+
+## Phase 6 — Web Front End ⬜ (v0.9.0)
+
+Give Mulberry a browser-based interface so analysis doesn't require the CLI.
+
+- Local web app (likely FastAPI serving the existing Jinja2/Plotly report
+  machinery) with a ticker search box, profile/peers/filings controls, and an
+  in-browser rendering of the analysis report.
+- Screening dashboard: run and view ranked screens, click through to
+  single-name reports; watchlist with score-over-time charts from the Phase 5
+  history store.
+- Report history browser for previously generated reports.
+- Reuses the analysis pipeline as-is — the front end is a thin presentation
+  layer; no scoring logic moves into it.
 
 ---
 

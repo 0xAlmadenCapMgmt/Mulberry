@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="mulberry",
-    version="0.6.0",
+    version="0.7.0",
     author="Almaden Capital Management",
     description="Multi-framework stock analysis and report generator",
     long_description=long_description,
@@ -33,6 +33,7 @@ setup(
         "python-dotenv>=1.0.0",
         "pyyaml>=6.0",
         "requests>=2.31.0",
+        "anthropic>=0.116.0",
         "python-dateutil>=2.8.0",
     ],
     extras_require={

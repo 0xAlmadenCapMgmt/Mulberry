@@ -60,7 +60,7 @@ def run_async(coro):
 
 
 @click.group()
-@click.version_option(version='0.6.0', prog_name='Mulberry')
+@click.version_option(version='0.7.0', prog_name='Mulberry')
 def cli():
     """
     Mulberry — Multi-Framework Stock Analysis
@@ -91,7 +91,10 @@ def cli():
               show_default=True, help='Investor-style weighting profile')
 @click.option('--filings/--no-filings', default=True, show_default=True,
               help='Include SEC EDGAR filing context (trends, red flags, excerpts)')
-def analyze(symbol: str, output: str, open_browser: bool, peers: str, profile: str, filings: bool):
+@click.option('--thesis/--no-thesis', default=True, show_default=True,
+              help='Include an AI-generated thesis narrative (needs ANTHROPIC_API_KEY; skipped without one)')
+def analyze(symbol: str, output: str, open_browser: bool, peers: str, profile: str,
+            filings: bool, thesis: bool):
     """
     Analyze a stock and generate an HTML analysis report.
 
@@ -143,7 +146,8 @@ def analyze(symbol: str, output: str, open_browser: bool, peers: str, profile: s
             try:
                 progress.update(task, description="[cyan]Running valuation analysis...")
                 report_path = await generator.generate_report(
-                    symbol, output, peers=peer_list, include_filings=filings
+                    symbol, output, peers=peer_list, include_filings=filings,
+                    include_thesis=thesis,
                 )
                 progress.update(task, description="[green]✓ Report ready!")
                 return report_path

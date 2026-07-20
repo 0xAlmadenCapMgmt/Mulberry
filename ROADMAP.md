@@ -20,8 +20,8 @@ independently shippable.
 | 1 | Trust & Foundation | 0.4.0 | ✅ Complete |
 | 2 | Sharper Signal | 0.5.0 | ✅ Complete |
 | 3 | SEC Filings & Temporal Context | 0.6.0 | ✅ Complete |
-| 4 | AI Thesis Layer | 0.7.0 | 🔜 Next |
-| 5 | Screening & Portfolio | 0.8.0 | ⬜ Planned |
+| 4 | AI Thesis Layer | 0.7.0 | ✅ Complete |
+| 5 | Screening & Portfolio | 0.8.0 | 🔜 Next |
 | 6 | Web Front End | 0.9.0 | ⬜ Planned |
 
 ---
@@ -119,7 +119,7 @@ healthy filers — deeper qualitative reading is handed to Phase 4.
 
 ---
 
-## Phase 4 — AI Thesis Layer ⬜ (v0.7.0)
+## Phase 4 — AI Thesis Layer ✅ (v0.7.0)
 
 Turn the computed metrics — and the Phase 3 filing text — into a written thesis
 for research notes.

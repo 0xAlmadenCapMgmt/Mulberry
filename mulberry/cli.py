@@ -60,7 +60,7 @@ def run_async(coro):
 
 
 @click.group()
-@click.version_option(version='0.7.0', prog_name='Mulberry')
+@click.version_option(version='0.8.0', prog_name='Mulberry')
 def cli():
     """
     Mulberry — Multi-Framework Stock Analysis
@@ -170,6 +170,84 @@ def analyze(symbol: str, output: str, open_browser: bool, peers: str, profile: s
             console.print(f"\n[bold red]✗ Analysis failed:[/bold red] {str(e)}")
             logger.error(f"Analysis failed: {e}", exc_info=True)
             raise click.Abort()
+
+
+@cli.command()
+@click.argument('symbols', nargs=-1)
+@click.option('--universe', '-u', type=click.Path(exists=True),
+              help='File with one ticker per line (used in addition to SYMBOLS)')
+@click.option('--output', '-o', help='Output HTML path (CSV written alongside)')
+@click.option('--open-browser', '-b', is_flag=True, help='Open the screen in a browser')
+@click.option('--profile', type=click.Choice(list(CompositeScorer.PROFILES)), default='balanced',
+              show_default=True, help='Investor-style weighting profile')
+@click.option('--filings/--no-filings', default=False, show_default=True,
+              help='Add SEC filing columns (red flags, leverage trend) — slower')
+def screen(symbols, universe, output, open_browser, profile, filings):
+    """
+    Screen a universe of tickers, ranked by composite score.
+
+    Produces a ranked HTML comparison plus a CSV alongside it.
+
+    \b
+    Example:
+        fa screen AAPL MSFT KO PLTR
+        fa screen --universe watchlist.txt --profile deep_value
+        fa screen AAPL MSFT --filings
+    """
+    show_banner()
+
+    tickers = [s.upper() for s in symbols]
+    if universe:
+        with open(universe, encoding='utf-8') as f:
+            tickers += [line.strip().upper() for line in f
+                        if line.strip() and not line.startswith('#')]
+    if not tickers:
+        console.print("[bold red]Error:[/bold red] provide tickers or --universe FILE")
+        raise click.Abort()
+
+    for t in tickers:
+        ok, err = validate_ticker(t)
+        if not ok:
+            console.print(f"[bold red]Error:[/bold red] {t}: {err}")
+            raise click.Abort()
+
+    console.print(Panel(
+        f"[bold cyan]Universe Screen[/bold cyan]\n"
+        f"Tickers: [bold]{len(tickers)}[/bold]\n"
+        f"Profile: [bold]{profile}[/bold]"
+        + ("\nFilings columns: [bold]on[/bold]" if filings else ""),
+        title="Mulberry",
+        border_style="cyan"
+    ))
+
+    from .reports.screen import ScreenReportGenerator
+    generator = ScreenReportGenerator(profile=profile, include_filings=filings)
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console
+    ) as progress:
+        task = progress.add_task(
+            f"[cyan]Analyzing {len(tickers)} tickers...", total=None)
+        try:
+            report_path = run_async(generator.generate(tickers, output))
+            progress.update(task, description="[green]✓ Screen ready!")
+        except Exception as e:
+            progress.update(task, description=f"[red]✗ {str(e)}")
+            console.print(f"\n[bold red]✗ Screen failed:[/bold red] {str(e)}")
+            logger.error(f"Screen failed: {e}", exc_info=True)
+            raise click.Abort()
+
+    console.print()
+    console.print("[bold green]✓ Screen generated![/bold green]")
+    console.print(f"[cyan]HTML:[/cyan] {report_path}")
+    console.print(f"[cyan]CSV:[/cyan]  {str(Path(report_path).with_suffix('.csv'))}")
+
+    if open_browser:
+        import webbrowser
+        webbrowser.open(f"file://{Path(report_path).absolute()}")
+        console.print("[green]✓ Opened in browser[/green]")
 
 
 @cli.command()

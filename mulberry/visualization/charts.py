@@ -379,6 +379,49 @@ class ChartBuilder:
         return fig
 
     @staticmethod
+    def create_score_history_chart(entries, symbol: str):
+        """Composite score over time from the run history.
+
+        Returns None with fewer than 2 recorded runs.
+        """
+        points = [(e["date"], e.get("composite")) for e in entries
+                  if e.get("composite") is not None]
+        if len(points) < 2:
+            return None
+
+        dates = [p[0] for p in points]
+        scores = [p[1] for p in points]
+
+        fig = go.Figure(
+            go.Scatter(
+                x=dates,
+                y=scores,
+                mode="lines+markers",
+                line=dict(color=_BLUE, width=2),
+                marker=dict(size=7),
+                hovertemplate="%{x}<br>Composite: %{y:.0f}/100<extra></extra>",
+            )
+        )
+        fig.add_hline(y=60, line_dash="dot", line_color=_GREEN, line_width=1,
+                      annotation_text="Buy zone", annotation_font_size=10)
+        fig.add_hline(y=40, line_dash="dot", line_color=_AMBER, line_width=1,
+                      annotation_text="Hold floor", annotation_font_size=10)
+        fig.update_layout(
+            title=dict(text=f"{symbol} — Composite Score History",
+                       font=dict(size=14, color=_NAVY)),
+            yaxis=dict(range=[0, 100], title="Score"),
+            xaxis_title=None,
+            height=320,
+            template="plotly_white",
+            showlegend=False,
+            font=dict(size=12, color=_SLATE),
+            margin=dict(t=50, b=40, l=60, r=20),
+            plot_bgcolor="white",
+            paper_bgcolor="white",
+        )
+        return fig
+
+    @staticmethod
     def create_health_scorecard_chart(
         checklist: Dict[str, Any], symbol: str
     ) -> go.Figure:

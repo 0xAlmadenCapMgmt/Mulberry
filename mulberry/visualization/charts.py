@@ -330,6 +330,55 @@ class ChartBuilder:
         return fig
 
     @staticmethod
+    def create_filings_trend_chart(trends, symbol: str):
+        """Multi-line chart of key balance-sheet trends from SEC filings ($B).
+
+        Returns None when there are no dollar-denominated trends to plot.
+        """
+        wanted = ("Total liabilities", "Long-term debt", "Cash & equivalents", "Shareholders' equity")
+        usd = [t for t in trends if t.unit == "USD" and t.label in wanted and len(t.points) >= 2]
+        if not usd:
+            return None
+
+        palette = {
+            "Total liabilities": _RED,
+            "Long-term debt": _AMBER,
+            "Cash & equivalents": _GREEN,
+            "Shareholders' equity": _BLUE,
+        }
+        fig = go.Figure()
+        for t in usd:
+            dates = [p[0] for p in t.points]
+            vals = [p[1] / 1_000_000_000 for p in t.points]
+            fig.add_trace(
+                go.Scatter(
+                    x=dates,
+                    y=vals,
+                    mode="lines+markers",
+                    name=t.label,
+                    line=dict(color=palette.get(t.label, _SLATE), width=2),
+                    marker=dict(size=6),
+                    hovertemplate="%{x}<br>" + t.label + ": $%{y:.2f}B<extra></extra>",
+                )
+            )
+
+        fig.update_layout(
+            title=dict(text=f"{symbol} — Balance-Sheet Trends (SEC filings, $B)",
+                       font=dict(size=14, color=_NAVY)),
+            xaxis_title=None,
+            yaxis_title="USD ($B)",
+            height=420,
+            template="plotly_white",
+            hovermode="x unified",
+            legend=dict(x=0.01, y=0.99, bgcolor="rgba(255,255,255,0.8)"),
+            font=dict(size=12, color=_SLATE),
+            margin=dict(t=50, b=40, l=70, r=20),
+            plot_bgcolor="white",
+            paper_bgcolor="white",
+        )
+        return fig
+
+    @staticmethod
     def create_health_scorecard_chart(
         checklist: Dict[str, Any], symbol: str
     ) -> go.Figure:

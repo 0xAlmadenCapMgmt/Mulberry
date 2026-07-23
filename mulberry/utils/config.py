@@ -35,6 +35,8 @@ class Config:
 
         # Cache settings (in seconds) — TTL for the pickled raw-data bundle
         self.cache_ttl_fundamentals = int(os.getenv('CACHE_TTL_FUNDAMENTALS', '86400'))
+        # SEC filings change infrequently, so cache them longer (default 7 days).
+        self.cache_ttl_filings = int(os.getenv('CACHE_TTL_FILINGS', '604800'))
 
         # Valuation parameters
         # AAA corporate bond yield used in the growth-adjusted earnings formula.

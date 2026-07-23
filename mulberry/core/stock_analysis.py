@@ -39,11 +39,15 @@ class StockAnalyzer:
         self,
         raw_cache: Optional[RawDataCache] = None,
         profile: str = "balanced",
+        filings_analyzer=None,
     ):
         self.yahoo = YahooFinanceAPI()
         self.raw_cache = raw_cache or RawDataCache(
             config.cache_dir, config.cache_ttl_fundamentals
         )
+        # Filings analysis is optional and lazily constructed (keeps `requests`
+        # / EDGAR off the import path unless actually used).
+        self._filings_analyzer = filings_analyzer
         self.valuation_engine = GrahamAnalyzer()
         self.quality_engine = QualityAnalyzer()
         self.growth_engine = GrowthAnalyzer()
@@ -53,7 +57,10 @@ class StockAnalyzer:
         self.composite_engine = CompositeScorer(profile)
 
     async def analyze(
-        self, symbol: str, peers: Optional[list] = None
+        self,
+        symbol: str,
+        peers: Optional[list] = None,
+        include_filings: bool = False,
     ) -> Dict[str, Any]:
         """
         Perform comprehensive stock analysis.
@@ -61,7 +68,9 @@ class StockAnalyzer:
         Runs all yfinance network calls in a single background thread to keep
         the async CLI responsive, then processes the results synchronously.
         When `peers` are given, also builds a peer-relative comparison (each
-        peer fetched through the same cached path).
+        peer fetched through the same cached path). When `include_filings` is
+        set, attaches SEC EDGAR filing context (`result["filings"]`, possibly
+        None); filings are context only and never alter the composite score.
         """
         logger.info(f"Starting analysis for {symbol}")
 
@@ -77,6 +86,12 @@ class StockAnalyzer:
             result["peer_comparison"] = await asyncio.to_thread(
                 self._peer_comparison, symbol.upper(), raw, peers
             )
+
+        if include_filings:
+            result["filings"] = await asyncio.to_thread(
+                self._fetch_filings, symbol.upper()
+            )
+            self._note_filings_confidence(result)
 
         return result
 
@@ -494,6 +509,47 @@ class StockAnalyzer:
             candidates.append(valuation.ncav_per_share * (2 / 3))
         valid = [v for v in candidates if v > 0]
         return statistics.mean(valid) if valid else 0.0
+
+    # ------------------------------------------------------------------
+    # SEC filings (optional context — never affects the score)
+    # ------------------------------------------------------------------
+
+    def _get_filings_analyzer(self):
+        if self._filings_analyzer is None:
+            from .filings import FilingsAnalyzer
+            filings_cache = RawDataCache(
+                config.cache_dir, config.cache_ttl_filings, namespace="filings"
+            )
+            self._filings_analyzer = FilingsAnalyzer(cache=filings_cache)
+        return self._filings_analyzer
+
+    def _fetch_filings(self, symbol: str):
+        """Fetch SEC filing context; returns None (never raises) on any failure."""
+        try:
+            return self._get_filings_analyzer().analyze(symbol)
+        except Exception as e:
+            logger.warning(f"Filings analysis failed for {symbol}: {e}")
+            return None
+
+    @staticmethod
+    def _note_filings_confidence(result: Dict[str, Any]) -> None:
+        """Record filing availability in the data-confidence notes (transparent
+        context, not a score change)."""
+        confidence = result.get("data_confidence")
+        if confidence is None:
+            return
+        filings = result.get("filings")
+        if filings is None:
+            confidence.notes.append(
+                "SEC filings: unavailable (EDGAR not reached or ticker not found)"
+            )
+            return
+        parts = []
+        if filings.trends:
+            parts.append(f"{len(filings.trends)} multi-year trends")
+        if filings.red_flags:
+            parts.append(f"{len(filings.red_flags)} red flag(s)")
+        confidence.notes.append("SEC filings: " + (", ".join(parts) if parts else "loaded"))
 
     # ------------------------------------------------------------------
     # Peer-relative comparison

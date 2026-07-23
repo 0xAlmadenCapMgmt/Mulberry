@@ -60,7 +60,7 @@ def run_async(coro):
 
 
 @click.group()
-@click.version_option(version='0.5.0', prog_name='Mulberry')
+@click.version_option(version='0.6.0', prog_name='Mulberry')
 def cli():
     """
     Mulberry — Multi-Framework Stock Analysis
@@ -89,7 +89,9 @@ def cli():
 @click.option('--peers', '-p', help='Comma-separated peer tickers for relative comparison (e.g. PEP,KDP,MNST)')
 @click.option('--profile', type=click.Choice(list(CompositeScorer.PROFILES)), default='balanced',
               show_default=True, help='Investor-style weighting profile')
-def analyze(symbol: str, output: str, open_browser: bool, peers: str, profile: str):
+@click.option('--filings/--no-filings', default=True, show_default=True,
+              help='Include SEC EDGAR filing context (trends, red flags, excerpts)')
+def analyze(symbol: str, output: str, open_browser: bool, peers: str, profile: str, filings: bool):
     """
     Analyze a stock and generate an HTML analysis report.
 
@@ -122,6 +124,12 @@ def analyze(symbol: str, output: str, open_browser: bool, peers: str, profile: s
         border_style="cyan"
     ))
 
+    if filings and config.sec_user_agent.strip() == 'FinancialAnalysis contact@example.com':
+        console.print(
+            "[yellow]Tip:[/yellow] set [bold]SEC_USER_AGENT[/bold] in config/.env to a real "
+            "contact string (SEC etiquette for EDGAR requests)."
+        )
+
     generator = ReportGenerator(profile=profile)
 
     with Progress(
@@ -134,7 +142,9 @@ def analyze(symbol: str, output: str, open_browser: bool, peers: str, profile: s
         async def generate():
             try:
                 progress.update(task, description="[cyan]Running valuation analysis...")
-                report_path = await generator.generate_report(symbol, output, peers=peer_list)
+                report_path = await generator.generate_report(
+                    symbol, output, peers=peer_list, include_filings=filings
+                )
                 progress.update(task, description="[green]✓ Report ready!")
                 return report_path
             except Exception as e:

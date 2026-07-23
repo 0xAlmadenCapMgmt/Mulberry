@@ -7,6 +7,7 @@ against canned data.
 """
 
 import os
+from datetime import datetime, timedelta
 
 import numpy as np
 import pandas as pd
@@ -232,6 +233,119 @@ def cashflow_annual():
         {"fiscalDateEnding": "2021-09-30", "operatingCashflow": 100.0,
          "capitalExpenditures": -9.0, "freeCashFlow": 91.0, "dividendPayout": -12.0},
     ]
+
+
+# ---------------------------------------------------------------------------
+# Canned SEC EDGAR data + a fake client
+# ---------------------------------------------------------------------------
+
+def _ago(days: int) -> str:
+    return (datetime.now().date() - timedelta(days=days)).isoformat()
+
+
+@pytest.fixture
+def edgar_submissions():
+    """A submissions payload with a recent 10-Q, 10-K, and two flagged 8-Ks."""
+    return {
+        "name": "Apple Inc.",
+        "filings": {
+            "recent": {
+                "form": ["10-Q", "8-K", "8-K", "10-K", "4"],
+                "filingDate": [_ago(30), _ago(20), _ago(15), _ago(200), _ago(5)],
+                "reportDate": [_ago(35), _ago(20), _ago(15), _ago(210), _ago(5)],
+                "accessionNumber": [
+                    "0000320193-25-000010", "0000320193-25-000011",
+                    "0000320193-25-000012", "0000320193-24-000005",
+                    "0000320193-25-000009",
+                ],
+                "primaryDocument": ["q.htm", "k1.htm", "k2.htm", "annual.htm", "x.htm"],
+                "items": ["", "5.02", "4.02", "", ""],
+            }
+        },
+    }
+
+
+@pytest.fixture
+def edgar_facts():
+    """Company facts where debt rises and cash falls (a derived red flag)."""
+    years = ["2021-09-30", "2022-09-30", "2023-09-30", "2024-09-30"]
+
+    def series(values, unit="USD"):
+        pts = [
+            {"end": y, "val": v, "form": "10-K", "fp": "FY", "accn": "x"}
+            for y, v in zip(years, values)
+        ]
+        return {"units": {unit: pts}}
+
+    return {
+        "entityName": "Apple Inc.",
+        "facts": {
+            "us-gaap": {
+                "Liabilities": series([250, 270, 280, 290]),
+                "LongTermDebtNoncurrent": series([100, 110, 120, 130]),   # +30%
+                "CashAndCashEquivalentsAtCarryingValue": series([60, 58, 55, 50]),  # -17%
+                "Assets": series([320, 340, 360, 380]),
+                "StockholdersEquity": series([70, 75, 80, 90]),
+                "CommonStockSharesOutstanding": series(
+                    [16.0e9, 15.8e9, 15.6e9, 15.4e9], unit="shares"
+                ),
+                "Revenues": series([350, 365, 380, 400]),
+                "NetIncomeLoss": series([85, 90, 95, 100]),
+            }
+        },
+    }
+
+
+@pytest.fixture
+def edgar_filing_html():
+    """A 10-K document with MD&A + Risk Factors headings and flag keywords."""
+    return (
+        "<html><body>"
+        "<h2>Management's Discussion and Analysis</h2>"
+        "<p>Revenue grew across all segments and operating margins expanded as the "
+        "company continued to invest in research and development. However, certain "
+        "adverse conditions raise substantial doubt about the Company's ability to "
+        "continue as a going concern, and management is pursuing financing to address "
+        "them. Separately, no material weakness in internal control over financial "
+        "reporting was identified during the period.</p>"
+        "<script>var x = 1;</script>"
+        "<h2>Risk Factors</h2>"
+        "<p>The business faces intense competition, regulatory scrutiny, and supply "
+        "chain disruptions, any of which could materially and adversely affect the "
+        "results of operations, financial condition, and cash flows in future periods.</p>"
+        "</body></html>"
+    )
+
+
+class FakeEdgarClient:
+    """Stand-in for SECEdgarClient returning canned data (no network)."""
+
+    def __init__(self, cik="0000320193", submissions=None, facts=None, doc_html=""):
+        self._cik = cik
+        self._submissions = submissions
+        self._facts = facts
+        self._doc_html = doc_html
+
+    def resolve_cik(self, ticker):
+        return self._cik
+
+    def get_submissions(self, cik):
+        return self._submissions
+
+    def get_company_facts(self, cik):
+        return self._facts
+
+    def get_filing_document(self, cik, accession, primary_document):
+        return self._doc_html
+
+
+@pytest.fixture
+def fake_edgar_client(edgar_submissions, edgar_facts, edgar_filing_html):
+    return FakeEdgarClient(
+        submissions=edgar_submissions,
+        facts=edgar_facts,
+        doc_html=edgar_filing_html,
+    )
 
 
 @pytest.fixture

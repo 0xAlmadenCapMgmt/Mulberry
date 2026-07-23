@@ -44,9 +44,11 @@ class ReportGenerator:
         self,
         analyzer: Optional[StockAnalyzer] = None,
         profile: str = "balanced",
+        thesis_generator=None,
     ):
         self.analyzer = analyzer or StockAnalyzer(profile=profile)
         self.chart_builder = ChartBuilder()
+        self._thesis_generator = thesis_generator  # injectable for tests
 
         self.jinja_env = jinja2.Environment(
             loader=jinja2.FileSystemLoader(str(config.templates_dir)),
@@ -62,6 +64,7 @@ class ReportGenerator:
         output_path: Optional[str] = None,
         peers: Optional[list] = None,
         include_filings: bool = False,
+        include_thesis: bool = False,
     ) -> str:
         """
         Generate a comprehensive fundamental analysis HTML report.
@@ -71,6 +74,8 @@ class ReportGenerator:
             output_path: Optional output file path
             peers: Optional list of peer tickers for relative comparison
             include_filings: Attach an SEC EDGAR filings section when available
+            include_thesis: Attach an AI-generated thesis narrative (requires
+                an Anthropic API key; silently omitted without one)
 
         Returns:
             Path to generated HTML report
@@ -80,6 +85,14 @@ class ReportGenerator:
         analysis = await self.analyzer.analyze(
             symbol, peers=peers, include_filings=include_filings
         )
+
+        thesis = None
+        if include_thesis:
+            from ..ai.thesis import ThesisGenerator
+            generator = self._thesis_generator or ThesisGenerator()
+            if generator.available:
+                # Sync SDK call — run in a thread to keep the CLI responsive
+                thesis = await asyncio.to_thread(generator.generate, analysis)
 
         valuation = analysis["valuation"]
         margins = valuation["margins_of_safety"]
@@ -272,6 +285,8 @@ class ReportGenerator:
             "peer_table": peer_table,
             "peer_symbols": ", ".join(peer_comparison.peer_symbols) if peer_comparison else "",
             "peer_overall_percentile": peer_comparison.overall_percentile if peer_comparison else 0,
+            # AI thesis (advisory narrative only — never changes the numbers)
+            "thesis": thesis,
             # SEC filings
             "filings_available": filings is not None,
             "filings_entity": filings.entity_name if filings else "",

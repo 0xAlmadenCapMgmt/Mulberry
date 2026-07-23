@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Mulberry{% endblock %}</title>
+  <style>
+    :root {
+      --bg: #f8fafc; --card: #ffffff; --ink: #0f172a; --muted: #64748b;
+      --line: #e2e8f0; --accent: #7c3aed; --accent-ink: #6d28d9;
+      --radius: 10px; --shadow: 0 1px 3px rgba(15,23,42,.08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--bg); color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.5;
+    }
+    header {
+      background: var(--card); border-bottom: 1px solid var(--line);
+      padding: 14px 24px; display: flex; align-items: center; gap: 20px;
+      position: sticky; top: 0; z-index: 10;
+    }
+    header .brand {
+      font-weight: 700; font-size: 18px; color: var(--accent-ink);
+      text-decoration: none; letter-spacing: -.02em;
+    }
+    header .brand span { color: var(--ink); }
+    header nav { display: flex; gap: 16px; }
+    header nav a { color: var(--muted); text-decoration: none; font-size: 14px; font-weight: 500; }
+    header nav a:hover { color: var(--accent-ink); }
+    main { max-width: 880px; margin: 0 auto; padding: 32px 24px; }
+    h1 { font-size: 24px; letter-spacing: -.02em; margin: 0 0 6px; }
+    .sub { color: var(--muted); font-size: 14px; margin: 0 0 24px; }
+    .card {
+      background: var(--card); border: 1px solid var(--line);
+      border-radius: var(--radius); box-shadow: var(--shadow);
+      padding: 24px; margin-bottom: 20px;
+    }
+    label { display: block; font-size: 13px; font-weight: 600; margin: 0 0 6px; }
+    input[type=text], select, textarea {
+      width: 100%; padding: 10px 12px; font-size: 14px; font-family: inherit;
+      border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink);
+    }
+    input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); border-color: var(--accent); }
+    textarea { min-height: 90px; resize: vertical; }
+    .row { display: flex; gap: 16px; flex-wrap: wrap; }
+    .row > div { flex: 1; min-width: 180px; }
+    .field { margin-bottom: 16px; }
+    .checks { display: flex; gap: 20px; flex-wrap: wrap; margin: 4px 0 20px; }
+    .checks label { display: flex; align-items: center; gap: 8px; font-weight: 500; font-size: 14px; margin: 0; cursor: pointer; }
+    .checks input { width: auto; }
+    button {
+      background: var(--accent); color: #fff; border: 0; border-radius: 8px;
+      padding: 11px 22px; font-size: 14px; font-weight: 600; cursor: pointer;
+    }
+    button:hover { background: var(--accent-ink); }
+    .hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 9px 12px; font-size: 13px; border-bottom: 1px solid var(--line); }
+    th { color: var(--muted); font-weight: 600; }
+    td a { color: var(--accent-ink); text-decoration: none; font-weight: 600; }
+    .pill { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #ede9fe; color: var(--accent-ink); }
+    .pill.screen { background: #dcfce7; color: #15803d; }
+    .empty { color: var(--muted); font-size: 14px; padding: 12px 0; }
+    footer { text-align: center; color: var(--muted); font-size: 12px; padding: 24px; }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg:#0f172a; --card:#1e293b; --ink:#e2e8f0; --muted:#94a3b8; --line:#334155; --accent:#a78bfa; --accent-ink:#c4b5fd; }
+      input, select, textarea { background:#0f172a; }
+      .pill { background:#3730a3; color:#e0e7ff; } .pill.screen { background:#14532d; color:#dcfce7; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <a class="brand" href="/">🫐 Mulberry</a>
+    <nav>
+      <a href="/">Analyze</a>
+      <a href="/screen">Screen</a>
+      <a href="/reports">History</a>
+    </nav>
+  </header>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+  <footer>
+    Mulberry — multi-framework stock analysis. Educational research context, not investment advice.
+  </footer>
+</body>
+</html>

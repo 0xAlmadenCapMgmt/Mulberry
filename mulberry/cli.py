@@ -60,7 +60,7 @@ def run_async(coro):
 
 
 @click.group()
-@click.version_option(version='0.8.0', prog_name='Mulberry')
+@click.version_option(version='0.9.0', prog_name='Mulberry')
 def cli():
     """
     Mulberry — Multi-Framework Stock Analysis
@@ -248,6 +248,44 @@ def screen(symbols, universe, output, open_browser, profile, filings):
         import webbrowser
         webbrowser.open(f"file://{Path(report_path).absolute()}")
         console.print("[green]✓ Opened in browser[/green]")
+
+
+@cli.command()
+@click.option('--host', default='127.0.0.1', show_default=True, help='Interface to bind')
+@click.option('--port', default=8000, show_default=True, type=int, help='Port to listen on')
+@click.option('--reload', is_flag=True, help='Auto-reload on code changes (development)')
+def serve(host: str, port: int, reload: bool):
+    """
+    Launch the Mulberry web front end.
+
+    A local browser UI over the same analysis pipeline: a ticker search box,
+    profile/peers/filings controls, a universe screener, and a report history
+    browser.
+
+    \b
+    Example:
+        fa serve
+        fa serve --host 0.0.0.0 --port 9000
+    """
+    show_banner()
+    console.print(Panel(
+        f"[bold cyan]Mulberry Web[/bold cyan]\n"
+        f"Open [bold]http://{host}:{port}[/bold] in your browser\n"
+        f"[dim]Ctrl+C to stop[/dim]",
+        title="Mulberry",
+        border_style="cyan"
+    ))
+    try:
+        import uvicorn
+    except ImportError:
+        console.print("[bold red]Error:[/bold red] web dependencies not installed. "
+                      "Run [bold]pip install 'mulberry[web]'[/bold] or "
+                      "[bold]pip install fastapi uvicorn python-multipart[/bold].")
+        raise click.Abort()
+
+    # Import target string keeps --reload working (uvicorn re-imports the app).
+    uvicorn.run("mulberry.web.app:create_app", factory=True,
+                host=host, port=port, reload=reload)
 
 
 @cli.command()

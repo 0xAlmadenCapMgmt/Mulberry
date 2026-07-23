@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Mulberry — Report History{% endblock %}
+{% block content %}
+<h1>Report history</h1>
+<p class="sub">Previously generated analysis and screen reports.</p>
+
+<div class="card">
+  {% if reports %}
+  <table>
+    <thead><tr><th>Report</th><th>Type</th><th>Generated</th><th>Files</th></tr></thead>
+    <tbody>
+      {% for r in reports %}
+      <tr>
+        <td><a href="/reports/{{ r.filename }}">{{ r.symbol or r.filename }}</a></td>
+        <td><span class="pill {{ r.kind }}">{{ r.kind }}</span></td>
+        <td>{{ r.modified.strftime('%b %d, %Y %H:%M') }}</td>
+        <td>
+          <a href="/reports/{{ r.filename }}">HTML</a>
+          {% if r.has_csv %} · <a href="/reports/{{ r.filename[:-5] }}.csv">CSV</a>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty">No reports yet. <a href="/" style="color:var(--accent-ink);">Analyze a stock →</a></p>
+  {% endif %}
+</div>
+{% endblock %}

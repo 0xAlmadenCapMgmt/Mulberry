@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="mulberry",
-    version="0.8.0",
+    version="0.9.0",
     author="Almaden Capital Management",
     description="Multi-framework stock analysis and report generator",
     long_description=long_description,
@@ -37,10 +37,19 @@ setup(
         "python-dateutil>=2.8.0",
     ],
     extras_require={
+        "web": [
+            "fastapi>=0.110.0",
+            "uvicorn>=0.27.0",
+            "python-multipart>=0.0.9",
+        ],
         "dev": [
             "pytest>=7.4.0",
             "pytest-asyncio>=0.21.0",
             "pytest-cov>=4.1.0",
+            "fastapi>=0.110.0",
+            "uvicorn>=0.27.0",
+            "python-multipart>=0.0.9",
+            "httpx>=0.27.0",
         ],
     },
     entry_points={
@@ -51,6 +60,6 @@ setup(
     },
     include_package_data=True,
     package_data={
-        "mulberry": ["templates/*.html"],
+        "mulberry": ["templates/*.html", "web/templates/*.html"],
     },
 )

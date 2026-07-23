@@ -22,7 +22,7 @@ independently shippable.
 | 3 | SEC Filings & Temporal Context | 0.6.0 | ✅ Complete |
 | 4 | AI Thesis Layer | 0.7.0 | ✅ Complete |
 | 5 | Screening & Portfolio | 0.8.0 | ✅ Complete |
-| 6 | Web Front End | 0.9.0 | 🔜 Next |
+| 6 | Web Front End | 0.9.0 | ✅ Complete |
 
 ---
 
@@ -152,7 +152,7 @@ Scale trustworthy single-name analysis to a universe.
 
 ---
 
-## Phase 6 — Web Front End ⬜ (v0.9.0)
+## Phase 6 — Web Front End ✅ (v0.9.0)
 
 Give Mulberry a browser-based interface so analysis doesn't require the CLI.
 

@@ -29,3 +29,8 @@ pytest-cov>=4.1.0
 
 # AI thesis narrative (optional at runtime — used when ANTHROPIC_API_KEY is set)
 anthropic>=0.116.0
+
+# Web front end (optional — `pip install .[web]`)
+fastapi>=0.110.0
+uvicorn>=0.27.0
+python-multipart>=0.0.9

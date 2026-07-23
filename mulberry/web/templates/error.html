@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Mulberry — Error{% endblock %}
+{% block content %}
+<h1>Something went wrong</h1>
+<div class="card">
+  <p style="margin:0 0 8px;">{{ message }}</p>
+  <p class="hint" style="margin:0;"><a href="/" style="color:var(--accent-ink);">← Back to analyze</a></p>
+</div>
+{% endblock %}

@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Mulberry — Analyze{% endblock %}
+{% block content %}
+<h1>Analyze a stock</h1>
+<p class="sub">Blends value, quality, growth, dividend, and momentum frameworks into a composite score, with optional SEC-filing context and an AI thesis.</p>
+
+<form class="card" action="/analyze" method="post">
+  <div class="row">
+    <div class="field">
+      <label for="symbol">Ticker</label>
+      <input type="text" id="symbol" name="symbol" placeholder="AAPL" autofocus required>
+    </div>
+    <div class="field">
+      <label for="profile">Weighting profile</label>
+      <select id="profile" name="profile">
+        {% for p in profiles %}<option value="{{ p }}"{% if p == 'balanced' %} selected{% endif %}>{{ p }}</option>{% endfor %}
+      </select>
+    </div>
+  </div>
+
+  <div class="field">
+    <label for="peers">Peer tickers <span style="font-weight:400;color:var(--muted)">(optional, comma-separated)</span></label>
+    <input type="text" id="peers" name="peers" placeholder="PEP, KDP, MNST">
+    <div class="hint">Adds a peer-relative percentile comparison.</div>
+  </div>
+
+  <div class="checks">
+    <label><input type="checkbox" name="filings" value="true" checked> SEC filings &amp; trends</label>
+    <label><input type="checkbox" name="thesis" value="true" checked> AI investment thesis</label>
+  </div>
+
+  <button type="submit">Analyze →</button>
+  <span class="hint" style="margin-left:12px;">Fetches live market &amp; filing data — may take a few seconds.</span>
+</form>
+
+<div class="card">
+  <h1 style="font-size:16px;">Recent reports</h1>
+  {% if reports %}
+  <table>
+    <thead><tr><th>Report</th><th>Type</th><th>Generated</th></tr></thead>
+    <tbody>
+      {% for r in reports %}
+      <tr>
+        <td><a href="/reports/{{ r.filename }}">{{ r.symbol or r.filename }}</a></td>
+        <td><span class="pill {{ r.kind }}">{{ r.kind }}</span></td>
+        <td>{{ r.modified.strftime('%b %d, %Y %H:%M') }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="hint" style="margin-top:12px;"><a href="/reports" style="color:var(--accent-ink);">See all reports →</a></p>
+  {% else %}
+  <p class="empty">No reports yet — run an analysis above.</p>
+  {% endif %}
+</div>
+{% endblock %}

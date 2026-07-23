@@ -45,10 +45,12 @@ class ReportGenerator:
         analyzer: Optional[StockAnalyzer] = None,
         profile: str = "balanced",
         thesis_generator=None,
+        history=None,
     ):
         self.analyzer = analyzer or StockAnalyzer(profile=profile)
         self.chart_builder = ChartBuilder()
         self._thesis_generator = thesis_generator  # injectable for tests
+        self._history = history  # injectable for tests; lazily built otherwise
 
         self.jinja_env = jinja2.Environment(
             loader=jinja2.FileSystemLoader(str(config.templates_dir)),
@@ -93,6 +95,15 @@ class ReportGenerator:
             if generator.available:
                 # Sync SDK call — run in a thread to keep the CLI responsive
                 thesis = await asyncio.to_thread(generator.generate, analysis)
+
+        # Record today's scores and load the run history (score-over-time)
+        from ..cache.history import ScoreHistory, snapshot_from_analysis
+        history = self._history or ScoreHistory()
+        history.record(symbol.upper(), snapshot_from_analysis(analysis))
+        history_entries = history.load(symbol.upper())
+        score_history_chart = self.chart_builder.create_score_history_chart(
+            history_entries, symbol.upper()
+        )
 
         valuation = analysis["valuation"]
         margins = valuation["margins_of_safety"]
@@ -287,6 +298,12 @@ class ReportGenerator:
             "peer_overall_percentile": peer_comparison.overall_percentile if peer_comparison else 0,
             # AI thesis (advisory narrative only — never changes the numbers)
             "thesis": thesis,
+            # Score history (needs >= 2 recorded runs)
+            "score_history_chart": (
+                score_history_chart.to_html(
+                    include_plotlyjs=False, div_id="score_history_chart", full_html=False
+                ) if score_history_chart else None
+            ),
             # SEC filings
             "filings_available": filings is not None,
             "filings_entity": filings.entity_name if filings else "",

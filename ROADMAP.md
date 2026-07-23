@@ -21,8 +21,8 @@ independently shippable.
 | 2 | Sharper Signal | 0.5.0 | ✅ Complete |
 | 3 | SEC Filings & Temporal Context | 0.6.0 | ✅ Complete |
 | 4 | AI Thesis Layer | 0.7.0 | ✅ Complete |
-| 5 | Screening & Portfolio | 0.8.0 | 🔜 Next |
-| 6 | Web Front End | 0.9.0 | ⬜ Planned |
+| 5 | Screening & Portfolio | 0.8.0 | ✅ Complete |
+| 6 | Web Front End | 0.9.0 | 🔜 Next |
 
 ---
 
@@ -137,7 +137,7 @@ for research notes.
 
 ---
 
-## Phase 5 — Screening & Portfolio ⬜ (v0.8.0)
+## Phase 5 — Screening & Portfolio ✅ (v0.8.0)
 
 Scale trustworthy single-name analysis to a universe.
 

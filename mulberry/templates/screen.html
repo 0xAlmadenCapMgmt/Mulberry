@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}Screen — {{ analyzed }} tickers — Mulberry{% endblock %}
+
+{% block content %}
+
+<div class="report-section" id="screen">
+  <div class="section-header">
+    <span class="section-title">Universe Screen</span>
+    <span class="section-tag">{{ analyzed }} analyzed</span>
+    <span class="section-tag">Profile: {{ profile }}</span>
+    {% if failed %}<span class="section-tag">{{ failed }} failed</span>{% endif %}
+  </div>
+  <p style="font-size:13px; color:var(--slate-500); line-height:1.6; margin-bottom:12px;">
+    Ranked by composite score under the <strong>{{ profile }}</strong> weighting
+    profile. Generated {{ generation_time }}. Educational research context — not
+    investment advice.
+  </p>
+
+  <div style="border:1px solid var(--slate-200); border-radius:var(--radius); overflow:auto; box-shadow:var(--shadow);">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Symbol</th>
+          <th>Company</th>
+          <th>Price</th>
+          <th>Composite</th>
+          <th>Recommendation</th>
+          <th>Val</th>
+          <th>Qual</th>
+          <th>Grw</th>
+          <th>Mom</th>
+          <th>Div</th>
+          <th>MoS</th>
+          <th>P/E</th>
+          <th>Data</th>
+          {% if include_filings %}
+          <th>Flags</th>
+          <th>Leverage</th>
+          {% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        {% if not row.error %}
+        <tr>
+          <td><strong>{{ loop.index }}</strong></td>
+          <td><strong>{{ row.symbol }}</strong></td>
+          <td>{{ row.name }}</td>
+          <td>${{ "%.2f"|format(row.price) }}</td>
+          <td>
+            <span class="badge {% if row.composite >= 60 %}badge-pass{% elif row.composite >= 40 %}badge-hold{% else %}badge-fail{% endif %}">
+              {{ "%.0f"|format(row.composite) }}/100
+            </span>
+          </td>
+          <td style="font-size:12px;">{{ row.recommendation.split('—')[0].strip() }}</td>
+          <td>{{ "%.0f"|format(row.lens_scores.get('value', 0)) }}</td>
+          <td>{{ "%.0f"|format(row.lens_scores.get('quality', 0)) }}</td>
+          <td>{{ "%.0f"|format(row.lens_scores.get('growth', 0)) }}</td>
+          <td>{{ "%.0f"|format(row.lens_scores.get('momentum', 0)) }}</td>
+          <td>{{ "%.0f"|format(row.lens_scores.get('dividend', 0)) }}</td>
+          <td class="{% if row.margin_of_safety >= 0 %}positive{% else %}negative{% endif %}">
+            {{ "%.0f"|format(row.margin_of_safety * 100) }}%
+          </td>
+          <td>{{ "%.1f"|format(row.pe_ratio) }}x</td>
+          <td>
+            {% if row.confidence == 'High' %}🟢{% elif row.confidence == 'Medium' %}🟡{% elif row.confidence %}🔴{% endif %}
+          </td>
+          {% if include_filings %}
+          <td>
+            {% if row.red_flag_count is none %}—
+            {% elif row.red_flag_count == 0 %}<span class="badge badge-pass">0</span>
+            {% else %}<span class="badge badge-fail">{{ row.red_flag_count }}</span>{% endif %}
+          </td>
+          <td style="font-size:12px;">{{ row.leverage_trend }}</td>
+          {% endif %}
+        </tr>
+        {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if failed %}
+  <h4 style="margin:20px 0 8px;">Failed tickers</h4>
+  <div style="border:1px solid var(--slate-200); border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow);">
+    <table class="data-table">
+      <thead><tr><th>Symbol</th><th>Error</th></tr></thead>
+      <tbody>
+        {% for row in rows if row.error %}
+        <tr><td><strong>{{ row.symbol }}</strong></td>
+            <td style="font-size:12px;color:var(--slate-500);">{{ row.error }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  <p style="font-size:12px; color:var(--slate-400); margin-top:14px;">
+    A CSV of this screen was written alongside the HTML file. Run
+    <code>mulberry analyze SYMBOL</code> for the full single-name report on any candidate.
+  </p>
+</div>
+
+{% endblock %}

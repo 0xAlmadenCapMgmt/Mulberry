@@ -54,6 +54,7 @@
   <li><a href="#summary">Summary</a></li>
   {% if thesis %}<li><a href="#thesis">AI Thesis</a></li>{% endif %}
   <li><a href="#frameworks">Frameworks</a></li>
+  {% if score_history_chart %}<li><a href="#score-history">Score History</a></li>{% endif %}
   {% if peer_table %}<li><a href="#peers">Peer-Relative</a></li>{% endif %}
   <li><a href="#valuation">Valuation</a></li>
   <li><a href="#dcf">DCF</a></li>
@@ -210,6 +211,22 @@
   <div style="border:1px solid var(--slate-200); border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow);">
     {{ peer_table | safe }}
   </div>
+</div>
+{% endif %}
+
+<!-- ── Score History ───────────────────────────────── -->
+{% if score_history_chart %}
+<div class="report-section" id="score-history">
+  <div class="section-header">
+    <span class="section-title">Composite Score History</span>
+    <span class="section-tag">Across runs</span>
+  </div>
+  <p style="font-size:12px; color:var(--slate-500); margin-bottom:10px;">
+    How this name's composite score has evolved across Mulberry runs. Score
+    changes reflect new market data and filings, not changes to the methodology
+    within a version.
+  </p>
+  <div class="chart-wrap">{{ score_history_chart | safe }}</div>
 </div>
 {% endif %}
 

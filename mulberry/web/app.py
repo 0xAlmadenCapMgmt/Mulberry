@@ -96,11 +96,11 @@ def create_app(
 
     @app.get("/", response_class=HTMLResponse)
     async def home(request: Request):
-        return templates.TemplateResponse("home.html", {
-            "request": request,
-            "profiles": profiles,
-            "reports": _recent_reports(10),
-        })
+        return templates.TemplateResponse(
+            request=request,
+            name="home.html",
+            context={"profiles": profiles, "reports": _recent_reports(10)},
+        )
 
     @app.post("/analyze")
     async def analyze(
@@ -131,9 +131,9 @@ def create_app(
 
     @app.get("/screen", response_class=HTMLResponse)
     async def screen_form(request: Request):
-        return templates.TemplateResponse("screen.html", {
-            "request": request, "profiles": profiles,
-        })
+        return templates.TemplateResponse(
+            request=request, name="screen.html", context={"profiles": profiles},
+        )
 
     @app.post("/screen")
     async def run_screen(
@@ -161,9 +161,10 @@ def create_app(
 
     @app.get("/reports", response_class=HTMLResponse)
     async def reports(request: Request):
-        return templates.TemplateResponse("history.html", {
-            "request": request, "reports": _recent_reports(50),
-        })
+        return templates.TemplateResponse(
+            request=request, name="history.html",
+            context={"reports": _recent_reports(50)},
+        )
 
     @app.get("/reports/{filename}")
     async def serve_report(filename: str):
@@ -180,5 +181,6 @@ def create_app(
 
 def _error_page(templates, request, message: str, status: int):
     return templates.TemplateResponse(
-        "error.html", {"request": request, "message": message}, status_code=status,
+        request=request, name="error.html",
+        context={"message": message}, status_code=status,
     )

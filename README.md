@@ -9,9 +9,16 @@
 ╚═╝     ╚═╝ ╚═════╝ ╚══════╝╚═════╝ ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝
 ```
 
-**Mulberry** is a stock analysis platform that evaluates a company through **five complementary frameworks** and blends them into a single composite score and recommendation. It began as a Ben Graham value-investing tool (formerly *Charlotte*) and now goes well beyond classic value:
+**Mulberry** evaluates a company through **five complementary frameworks**, blends
+them into a single composite score and recommendation, then contextualizes the
+result with **SEC-filing history**, an optional **AI-written thesis**, and a
+**universe screener** — all rendered as interactive HTML from the command line or
+a local web UI. It began as a Ben Graham value tool (formerly *Charlotte*) and now
+goes well beyond classic value.
 
-| Lens | Weight | What it measures |
+**New here?** → **[GETTING_STARTED.md](GETTING_STARTED.md)** has copy-paste startup commands.
+
+| Lens | Weight\* | What it measures |
 |---|---|---|
 | **Value** | 30% | Margin of safety from six intrinsic-value methods (Graham + DCF + DDM) |
 | **Quality** | 25% | Margins, return on equity, free-cash-flow conversion and consistency |
@@ -19,32 +26,31 @@
 | **Momentum** | 15% | 50/200-day trend, RSI, 52-week range position, trailing returns |
 | **Dividend** | 10% | Yield, payout sustainability, dividend growth, track record |
 
-Dividend weight is redistributed for non-payers, and a severely negative margin of safety caps the recommendation at HOLD — quality alone never justifies buying at any price.
+\* Default `balanced` weights. Choose a different `--profile` (`deep_value`, `garp`,
+`income`, `quality_growth`) to re-weight. Dividend weight is redistributed for
+non-payers, and a severely negative margin of safety caps the recommendation at
+HOLD — quality alone never justifies buying at any price.
 
-## Valuation Methods
+## What's in a report
 
-1. **Graham Number** — `√(22.5 × EPS × BVPS)`
-2. **Net-Net Working Capital (NCAV)** — liquidation floor at ⅔ discount
-3. **Normalized Earnings** — multi-year average EPS × conservative P/E
-4. **Growth-Adjusted Earnings** — `(EPS × (8.5 + 2g) × 4.4) / Y`
-5. **Discounted Cash Flow** — two-stage FCF model (5-year capped growth + Gordon terminal value), with discount-rate/terminal-growth sensitivity grid
-6. **Dividend Discount Model** — Gordon growth model for established payers
+- Composite recommendation + 5-lens radar and scorecard
+- **Six valuation methods**: Graham Number `√(22.5 × EPS × BVPS)`, Net-Net (NCAV),
+  Normalized Earnings, Growth-Adjusted Earnings, two-stage **DCF** (with a
+  discount-rate/terminal-growth sensitivity grid), and a **Dividend Discount Model**
+- Relative-valuation multiples (EV/EBITDA, EV/Sales, P/FCF) and a forward-looking
+  analyst panel
+- **Peer-relative percentiles** (`--peers`) and **composite score history** across runs
+- **SEC Filings & Trends** — multi-year XBRL balance-sheet trends, a filing timeline,
+  a conservative red-flag scan (going-concern, notable 8-K items), and MD&A /
+  Risk-Factor excerpts
+- **Investment Thesis (AI-generated)** — a narrative thesis, bull/bear case, and
+  risks synthesized from the metrics and filing text (optional; see below)
+- Financial-health scorecard, per-lens detail tables, and a data-confidence badge
 
-Plus the classic Graham **defensive investor checklist** (8 criteria) and **enterprising investor opportunity screen**.
+Filings and the AI thesis are **context only** — they never change the numeric
+scores or the recommendation.
 
-## Reports
-
-Self-contained HTML reports with interactive Plotly charts:
-
-- Composite recommendation banner and 5-lens radar chart
-- Intrinsic value estimates vs current price
-- DCF summary with sensitivity table
-- Margin-of-safety gauge
-- 2-year price chart with 50/200-day moving averages
-- Financial health scorecard and per-lens detail tables
-- Revenue/net-income trends and key metrics
-
-## Installation
+## Install
 
 ```bash
 python3 -m venv venv
@@ -52,59 +58,86 @@ source venv/bin/activate   # Windows: venv\Scripts\activate
 pip install -e .
 ```
 
-No API keys required — all data comes from Yahoo Finance via `yfinance`.
+Core data (Yahoo Finance + SEC EDGAR) needs **no API keys**.
+
+> **Running on a path with spaces** (like `Mulberry (Financial Analysis Tool)`):
+> the generated `mulberry` / `fa` shortcut scripts break, so invoke as a module:
+> `./venv/bin/python -m mulberry.cli <command>`. See
+> [GETTING_STARTED.md](GETTING_STARTED.md).
 
 ## Usage
 
 ```bash
-mulberry analyze AAPL             # full multi-framework report
-mulberry analyze MSFT -o out.html -b   # custom path, open in browser
-mulberry info                     # show configuration
-mulberry test-api                 # verify Yahoo Finance connectivity
-mulberry clear-cache [--all]      # cache maintenance
-mulberry examples                 # usage examples
+# Web UI — ticker search, screener, and report history at http://127.0.0.1:8000
+mulberry serve
+
+# Single-name report (open in browser)
+mulberry analyze AAPL -b
+mulberry analyze KO --peers PEP,KDP,MNST --profile income -b
+mulberry analyze NVDA --no-filings -b        # skip the SEC fetch
+
+# Rank a universe → HTML + CSV
+mulberry screen AAPL MSFT KO PLTR -b
+mulberry screen --universe watchlist.txt --profile deep_value -b
+
+# Maintenance
+mulberry info                                # config + paths
+mulberry test-api                            # verify Yahoo Finance connectivity
+mulberry clear-cache                         # drop cached ticker data
 ```
 
-`fa` is available as a short alias for `mulberry`.
+`fa` is a short alias for `mulberry` (both break on space-containing paths — use
+the module form above there). Full flags: `mulberry <command> --help`.
 
-## Configuration
+## Configuration (optional)
 
-Optional — copy `config/.env.example` to `config/.env` to override defaults:
+Copy `config/.env.example` to `config/.env`, or export in your shell:
 
 ```bash
-CACHE_TTL_QUOTES=300          # quote cache TTL (seconds)
-CACHE_TTL_FUNDAMENTALS=86400  # fundamentals cache TTL
-AAA_BOND_YIELD=5.0            # AAA yield used in growth-adjusted formula (%)
+CACHE_TTL_FUNDAMENTALS=86400   # yfinance bundle cache TTL (seconds)
+CACHE_TTL_FILINGS=604800       # SEC filings cache TTL (7 days)
+AAA_BOND_YIELD=5.0             # AAA yield used in the growth-adjusted formula (%)
+SEC_USER_AGENT="Your Name you@example.com"   # SEC etiquette for EDGAR requests
+ANTHROPIC_API_KEY=sk-ant-...   # enables the AI thesis section (omitted without it)
+THESIS_MODEL=claude-opus-4-8   # override the thesis model (optional)
 ```
 
-## Project Structure
+## Project structure
 
 ```
 mulberry/
-├── api/               # Yahoo Finance wrapper
+├── api/               # data sources
+│   ├── yahoo_finance.py   # market data + fundamentals
+│   └── sec_edgar.py       # SEC EDGAR client (filings + XBRL)
 ├── core/
-│   ├── graham.py      # Graham valuation methods + checklists
-│   ├── dcf.py         # Two-stage FCF discounted cash flow
-│   ├── quality.py     # Business quality scoring
-│   ├── growth.py      # Growth / GARP scoring
-│   ├── dividend.py    # Dividend analysis + DDM
-│   ├── technicals.py  # Momentum / technical scoring
-│   ├── composite.py   # Weighted multi-framework blend
-│   └── stock_analysis.py  # Data fetch + pipeline orchestration
-├── cache/             # SQLite cache with TTL
+│   ├── graham.py · dcf.py · dividend.py     # valuation methods
+│   ├── quality.py · growth.py · technicals.py  # lens engines
+│   ├── relative.py · multiples.py · forward.py # peers, multiples, estimates
+│   ├── filings.py         # SEC filing timeline, trends, red flags, excerpts
+│   ├── data_quality.py    # per-lens data-confidence scoring
+│   ├── composite.py       # weighted multi-framework blend + profiles
+│   └── stock_analysis.py  # data fetch + pipeline orchestration
+├── ai/thesis.py       # AI investment-thesis synthesis (Anthropic)
+├── cache/             # pickle raw-data cache + score history
+├── reports/           # HTML report + universe-screen generators
 ├── visualization/     # Plotly chart builders
-├── reports/           # HTML report generator
-├── templates/         # Jinja2 templates
+├── templates/         # report Jinja2 templates
+├── web/               # FastAPI front end (app + page templates)
 └── cli.py             # Click CLI
 ```
 
 ## Technology
 
-Python 3.9+ · Click + Rich · yfinance · pandas · Plotly · Jinja2 · SQLAlchemy/SQLite
+Python 3.9+ · Click + Rich · FastAPI + Uvicorn (web) · yfinance · pandas · Plotly ·
+Jinja2 · requests (SEC EDGAR) · anthropic (optional AI thesis). Fully tested
+across Python 3.9–3.11 in CI.
 
 ## Disclaimer
 
-This tool is for educational and informational purposes only. It does not constitute financial, investment, or trading advice. Always conduct your own due diligence and consult a qualified financial advisor before making investment decisions. Past performance does not guarantee future results.
+This tool is for educational and informational purposes only. It does not
+constitute financial, investment, or trading advice. Always conduct your own due
+diligence and consult a qualified financial advisor before making investment
+decisions. Past performance does not guarantee future results.
 
 ## References
 

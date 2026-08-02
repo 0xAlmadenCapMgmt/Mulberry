@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}Mulberry — Ask{% endblock %}
+{% block content %}
+<h1>Ask about a stock</h1>
+<p class="sub">Question a computed analysis in plain language. The assistant is grounded in Mulberry's numbers — it can drill into a lens, define a term, or compare another ticker. Educational context, not investment advice.</p>
+
+<div class="card">
+  <div class="row">
+    <div class="field" style="flex:2;">
+      <label for="symbol">Ticker</label>
+      <input type="text" id="symbol" placeholder="AAPL" value="{{ symbol }}" autofocus>
+    </div>
+    <div class="field">
+      <label for="profile">Weighting profile</label>
+      <select id="profile">
+        {% for p in profiles %}<option value="{{ p }}"{% if p == 'balanced' %} selected{% endif %}>{{ p }}</option>{% endfor %}
+      </select>
+    </div>
+  </div>
+  <div class="hint">The first question computes the analysis (fetches live data — a few seconds); later questions reuse it.</div>
+</div>
+
+<div class="card" id="chat-card">
+  <div id="messages" aria-live="polite"></div>
+  <div id="chat-empty" class="empty">Ask a question below to get started — e.g. “Why is the composite score what it is?” or “What does NCAV mean?”</div>
+  <form id="chat-form" class="row" style="align-items:flex-end; margin-top:12px;">
+    <div class="field" style="flex:1; margin-bottom:0;">
+      <label for="question">Your question</label>
+      <input type="text" id="question" placeholder="Why is the composite only 60?" required>
+    </div>
+    <button type="submit" id="send-btn">Ask →</button>
+  </form>
+</div>
+
+<style>
+  .msg { padding: 10px 14px; border-radius: 12px; margin: 8px 0; max-width: 88%; white-space: pre-wrap; line-height: 1.55; font-size: 14px; }
+  .msg.user { background: var(--accent); color: #fff; margin-left: auto; border-bottom-right-radius: 3px; }
+  .msg.bot { background: var(--bg); border: 1px solid var(--line); border-bottom-left-radius: 3px; }
+  .msg.err { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+  .msg .tools { display:block; margin-top:6px; font-size:11px; color: var(--muted); }
+  @media (prefers-color-scheme: dark) { .msg.err { background:#3f1d1d; border-color:#7f1d1d; color:#fecaca; } }
+</style>
+
+<script>
+  (function () {
+    var msgs = document.getElementById('messages');
+    var empty = document.getElementById('chat-empty');
+    var form = document.getElementById('chat-form');
+    var qInput = document.getElementById('question');
+    var symInput = document.getElementById('symbol');
+    var profInput = document.getElementById('profile');
+    var sendBtn = document.getElementById('send-btn');
+    var history = [];
+
+    function add(role, text, opts) {
+      opts = opts || {};
+      empty.style.display = 'none';
+      var div = document.createElement('div');
+      div.className = 'msg ' + role;
+      div.textContent = text;
+      if (opts.tools && opts.tools.length) {
+        var t = document.createElement('span');
+        t.className = 'tools';
+        t.textContent = 'Looked up: ' + opts.tools.join(', ');
+        div.appendChild(t);
+      }
+      msgs.appendChild(div);
+      div.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      return div;
+    }
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var q = qInput.value.trim();
+      var symbol = symInput.value.trim().toUpperCase();
+      if (!q) return;
+      if (!symbol) { add('err', 'Enter a ticker first.'); return; }
+
+      add('user', q);
+      qInput.value = '';
+      sendBtn.disabled = true;
+      var pending = add('bot', 'Thinking…');
+
+      fetch('/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ symbol: symbol, question: q, profile: profInput.value, history: history })
+      })
+        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+        .then(function (res) {
+          if (!res.ok || res.d.error) {
+            pending.className = 'msg err';
+            pending.textContent = res.d.error || 'Something went wrong.';
+          } else {
+            pending.textContent = res.d.answer;
+            if (res.d.tools_used && res.d.tools_used.length) {
+              var t = document.createElement('span');
+              t.className = 'tools';
+              t.textContent = 'Looked up: ' + res.d.tools_used.join(', ');
+              pending.appendChild(t);
+            }
+            history = res.d.history || history;
+            symInput.value = res.d.symbol || symbol;
+          }
+        })
+        .catch(function () {
+          pending.className = 'msg err';
+          pending.textContent = 'Network error — is the server still running?';
+        })
+        .finally(function () {
+          sendBtn.disabled = false;
+          qInput.focus();
+        });
+    });
+  })();
+</script>
+{% endblock %}

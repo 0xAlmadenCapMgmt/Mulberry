@@ -17,6 +17,7 @@
         <td>
           <a href="/reports/{{ r.filename }}">HTML</a>
           {% if r.has_csv %} · <a href="/reports/{{ r.filename[:-5] }}.csv">CSV</a>{% endif %}
+          {% if r.kind == 'analysis' and r.symbol %} · <a href="/ask?symbol={{ r.symbol }}">Ask</a>{% endif %}
         </td>
       </tr>
       {% endfor %}

@@ -23,6 +23,7 @@ from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
+from ..core import glossary
 from ..core.composite import CompositeScorer
 from ..reports.generator import ReportGenerator
 from ..reports.screen import ScreenReportGenerator
@@ -158,6 +159,13 @@ def create_app(
             return _error_page(templates, request, f"Screen failed: {e}", 502)
 
         return RedirectResponse(url=f"/reports/{Path(path).name}", status_code=303)
+
+    @app.get("/glossary", response_class=HTMLResponse)
+    async def glossary_page(request: Request):
+        return templates.TemplateResponse(
+            request=request, name="glossary.html",
+            context={"glossary": glossary.by_category()},
+        )
 
     @app.get("/reports", response_class=HTMLResponse)
     async def reports(request: Request):

@@ -29,6 +29,16 @@ def test_screen_form(client):
     assert "Screen a universe" in r.text
 
 
+def test_glossary_page(client):
+    r = client.get("/glossary")
+    assert r.status_code == 200
+    assert "Glossary" in r.text
+    # A representative term, an alias, and a formula are all rendered.
+    assert "Net Current Asset Value" in r.text
+    assert "Sharpe Ratio" in r.text
+    assert 'id="glossary-margin-of-safety"' in r.text
+
+
 def test_health(client):
     r = client.get("/health")
     assert r.status_code == 200

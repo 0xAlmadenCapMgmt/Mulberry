@@ -23,6 +23,8 @@ independently shippable.
 | 4 | AI Thesis Layer | 0.7.0 | ✅ Complete |
 | 5 | Screening & Portfolio | 0.8.0 | ✅ Complete |
 | 6 | Web Front End | 0.9.0 | ✅ Complete |
+| 7 | Glossary & Terms Index | 0.10.0 | ✅ Complete |
+| 8 | Analysis Agent | 0.11.0 | ✅ Complete |
 
 ---
 
@@ -167,6 +169,49 @@ Give Mulberry a browser-based interface so analysis doesn't require the CLI.
   layer; no scoring logic moves into it.
 
 ---
+
+## Phase 7 — Glossary & Terms Index ✅ (v0.10.0)
+
+Close the biggest usability gap: readers hitting NCAV, PEG, Sharpe, EV/EBITDA, or
+"margin of safety" with nowhere to look them up.
+
+- New `core/glossary.py` — a single curated source of truth (~55 `GlossaryTerm`
+  entries: slug, term, category, plain-language definition, optional formula,
+  aliases), grouped by category, with a guarded `lookup()` (slug/name/alias +
+  length-guarded substring fallback) and an `annotate()` helper that wraps a term
+  in a hover-tooltip span. Definitions are plain text so one entry renders safely
+  as an HTML tooltip, a report cell, and plain text for the agent.
+- Report gains a grouped **"Glossary & Formulas"** section (anchored per term) and
+  inline `.gloss` hover tooltips on summary cards, key metrics, the framework
+  scorecard, valuation multiples, and the momentum risk line (new `gloss` Jinja
+  filter).
+- Web gains a browsable **`/glossary`** page with a live client-side filter. The
+  same data module powers report, web, and — in Phase 8 — the agent.
+
+Delivered on `phase7-glossary`: `core/glossary.py`, report/web wiring, and a
+golden/coverage/lookup test module.
+
+## Phase 8 — Analysis Agent ✅ (v0.11.0)
+
+Let users interrogate a report in natural language instead of decoding it alone —
+the payoff of Phases 1–7's structured, grounded data.
+
+- New `ai/agent.py` — `AnalysisAgent`, a Claude tool-use loop grounded in the
+  **already-computed** analysis. Four read-only tools: `get_metric` (headline
+  numbers by loose name), `get_lens_detail` (per-criterion lens breakdown),
+  `define_term` (the Phase 7 glossary), and `analyze_ticker` (a fresh analysis on
+  another symbol for comparison). Same guardrails as the thesis layer: educational
+  context only, never personalized advice, never invents figures or contradicts
+  the computed scores. Degrades gracefully without an `ANTHROPIC_API_KEY`.
+- CLI `ask SYMBOL [QUESTION]` — one-shot answer or an interactive REPL, computing
+  the analysis once and threading conversation history.
+- Web `/ask` — a chat page (stateless history round-trip) over a JSON `POST /ask`
+  endpoint, with an "Ask" nav entry and an "Ask" action on analysis rows in the
+  history browser.
+
+Delivered on `phase7-glossary` (stacked): `ai/agent.py`, CLI `ask`, web `/ask`,
+and offline scripted-client + injected-analyzer tests. Filings, thesis, and the
+agent remain **context only** — none change the numeric scores.
 
 ## Design principles
 

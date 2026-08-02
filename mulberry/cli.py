@@ -60,7 +60,7 @@ def run_async(coro):
 
 
 @click.group()
-@click.version_option(version='0.9.0', prog_name='Mulberry')
+@click.version_option(version='0.11.0', prog_name='Mulberry')
 def cli():
     """
     Mulberry — Multi-Framework Stock Analysis
@@ -248,6 +248,109 @@ def screen(symbols, universe, output, open_browser, profile, filings):
         import webbrowser
         webbrowser.open(f"file://{Path(report_path).absolute()}")
         console.print("[green]✓ Opened in browser[/green]")
+
+
+@cli.command()
+@click.argument('symbol')
+@click.argument('question', required=False)
+@click.option('--profile', type=click.Choice(list(CompositeScorer.PROFILES)), default='balanced',
+              show_default=True, help='Investor-style weighting profile')
+@click.option('--peers', '-p', help='Comma-separated peer tickers for relative context')
+@click.option('--filings/--no-filings', default=False, show_default=True,
+              help='Fetch SEC filing context before answering (slower)')
+def ask(symbol: str, question: str, profile: str, peers: str, filings: bool):
+    """
+    Ask questions about a stock's analysis in natural language.
+
+    Computes the analysis once, then answers grounded in the computed metrics —
+    it can drill into a lens, define a term, or compare another ticker. Give a
+    QUESTION for a one-shot answer, or omit it for an interactive session.
+
+    \b
+    Example:
+        fa ask AAPL "why is the composite only 60?"
+        fa ask KO                       # interactive session
+        fa ask MSFT "how does it compare to AAPL?"
+    """
+    show_banner()
+
+    is_valid, error = validate_ticker(symbol)
+    if not is_valid:
+        console.print(f"[bold red]Error:[/bold red] {error}")
+        raise click.Abort()
+    symbol = normalize_ticker(symbol)
+    peer_list = [p.strip().upper() for p in peers.split(',') if p.strip()] if peers else None
+
+    from .core.stock_analysis import StockAnalyzer
+    from .ai.agent import AnalysisAgent
+
+    with Progress(
+        SpinnerColumn(), TextColumn("[progress.description]{task.description}"),
+        console=console,
+    ) as progress:
+        task = progress.add_task(f"[cyan]Analyzing {symbol}...", total=None)
+        try:
+            analysis = run_async(
+                StockAnalyzer(profile=profile).analyze(
+                    symbol, peers=peer_list, include_filings=filings
+                )
+            )
+            progress.update(task, description="[green]✓ Analysis ready")
+        except Exception as e:
+            progress.update(task, description=f"[red]✗ {str(e)}")
+            console.print(f"\n[bold red]✗ Analysis failed:[/bold red] {str(e)}")
+            logger.error(f"Ask analysis failed: {e}", exc_info=True)
+            raise click.Abort()
+
+    agent = AnalysisAgent(analysis=analysis)
+    if not agent.available:
+        console.print(
+            "\n[yellow]The analysis assistant needs an [bold]ANTHROPIC_API_KEY[/bold]. "
+            "Set one to ask questions about this report.[/yellow]"
+        )
+        raise click.Abort()
+
+    composite = analysis["frameworks"]["composite"]
+    console.print(Panel(
+        f"[bold cyan]{analysis['company_info'].get('name', symbol)}[/bold cyan] ({symbol})\n"
+        f"Composite [bold]{composite.overall_score:.0f}/100[/bold] · "
+        f"{analysis['recommendation']}",
+        title="Ask Mulberry", border_style="cyan",
+    ))
+
+    def answer_once(q: str, history):
+        with Progress(
+            SpinnerColumn(), TextColumn("[progress.description]{task.description}"),
+            console=console, transient=True,
+        ) as p:
+            p.add_task("[cyan]Thinking...", total=None)
+            reply = agent.ask(q, history=history)
+        console.print(Panel(reply.answer, border_style="green",
+                            title="Answer", title_align="left"))
+        return reply.history
+
+    if question:
+        answer_once(question, [])
+        console.print(
+            "\n[dim]Educational research context, not investment advice.[/dim]"
+        )
+        return
+
+    # Interactive session
+    console.print("[dim]Ask a question, or type 'exit' to quit.[/dim]\n")
+    history: list = []
+    while True:
+        try:
+            q = console.input("[bold cyan]you ›[/bold cyan] ").strip()
+        except (EOFError, KeyboardInterrupt):
+            console.print("\n[dim]Bye.[/dim]")
+            break
+        if not q:
+            continue
+        if q.lower() in ("exit", "quit", ":q"):
+            console.print("[dim]Bye.[/dim]")
+            break
+        history = answer_once(q, history)
 
 
 @cli.command()

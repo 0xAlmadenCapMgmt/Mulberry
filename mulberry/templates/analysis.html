@@ -70,6 +70,7 @@
   <li><a href="#metrics">Key Metrics</a></li>
   <li><a href="#confidence">Data Confidence</a></li>
   <li><a href="#methodology">Methodology</a></li>
+  <li><a href="#glossary">Glossary</a></li>
 </ul>
 {% endblock %}
 
@@ -110,13 +111,13 @@
     </div>
 
     <div class="metric-card {% if avg_intrinsic_value > current_price %}accent-green{% else %}accent-red{% endif %}">
-      <div class="metric-label">Avg Intrinsic Value</div>
+      <div class="metric-label">{{ "Avg Intrinsic Value" | gloss("intrinsic-value") }}</div>
       <div class="metric-value">${{ "%.2f"|format(avg_intrinsic_value) }}</div>
       <div class="metric-sub">Average of valid estimates</div>
     </div>
 
     <div class="metric-card {% if margin_of_safety >= 0.30 %}accent-green{% elif margin_of_safety < 0 %}accent-red{% else %}accent-amber{% endif %}">
-      <div class="metric-label">Margin of Safety</div>
+      <div class="metric-label">{{ "Margin of Safety" | gloss }}</div>
       <div class="metric-value {% if margin_of_safety >= 0.30 %}positive{% elif margin_of_safety < 0 %}negative{% endif %}">
         {{ "%.1f"|format(margin_of_safety * 100) }}%
       </div>
@@ -124,7 +125,7 @@
     </div>
 
     <div class="metric-card {% if composite_score >= 60 %}accent-green{% elif composite_score < 40 %}accent-red{% else %}accent-amber{% endif %}">
-      <div class="metric-label">Composite Score</div>
+      <div class="metric-label">{{ "Composite Score" | gloss }}</div>
       <div class="metric-value">{{ "%.0f"|format(composite_score) }}<span style="font-size:14px;color:var(--slate-400);">/100</span></div>
       <div class="metric-sub">Across 5 frameworks</div>
     </div>
@@ -461,9 +462,9 @@
   {% if momentum_volatility or momentum_max_drawdown %}
   <p style="font-size:12px; color:var(--slate-500); margin-top:10px;">
     <strong>Risk (2-yr):</strong>
-    annualized volatility {{ "%.1f"|format(momentum_volatility * 100) }}%
-    &middot; max drawdown {{ "%.1f"|format(momentum_max_drawdown * 100) }}%
-    &middot; Sharpe {{ "%.2f"|format(momentum_sharpe) }}
+    {{ "annualized volatility" | gloss("volatility") }} {{ "%.1f"|format(momentum_volatility * 100) }}%
+    &middot; {{ "max drawdown" | gloss("max-drawdown") }} {{ "%.1f"|format(momentum_max_drawdown * 100) }}%
+    &middot; {{ "Sharpe" | gloss("sharpe-ratio") }} {{ "%.2f"|format(momentum_sharpe) }}
   </p>
   {% endif %}
 </div>
@@ -544,35 +545,35 @@
   <div class="metric-grid">
 
     <div class="metric-card accent-slate">
-      <div class="metric-label">EPS (TTM)</div>
+      <div class="metric-label">{{ "EPS (TTM)" | gloss("eps") }}</div>
       <div class="metric-value">${{ "%.2f"|format(eps) }}</div>
     </div>
 
     <div class="metric-card accent-slate">
-      <div class="metric-label">Book Value / Share</div>
+      <div class="metric-label">{{ "Book Value / Share" | gloss("book-value") }}</div>
       <div class="metric-value">${{ "%.2f"|format(book_value) }}</div>
     </div>
 
     <div class="metric-card {% if pe_ratio > 0 and pe_ratio <= 15 %}accent-green{% elif pe_ratio > 25 %}accent-red{% else %}accent-slate{% endif %}">
-      <div class="metric-label">P/E Ratio</div>
+      <div class="metric-label">{{ "P/E Ratio" | gloss }}</div>
       <div class="metric-value">{{ "%.1f"|format(pe_ratio) }}x</div>
       <div class="metric-sub">Target &le; 15x</div>
     </div>
 
     <div class="metric-card {% if pb_ratio > 0 and pb_ratio <= 1.5 %}accent-green{% elif pb_ratio > 3 %}accent-red{% else %}accent-slate{% endif %}">
-      <div class="metric-label">P/B Ratio</div>
+      <div class="metric-label">{{ "P/B Ratio" | gloss }}</div>
       <div class="metric-value">{{ "%.2f"|format(pb_ratio) }}x</div>
       <div class="metric-sub">Target &le; 1.5x</div>
     </div>
 
     <div class="metric-card {% if current_ratio >= 2.0 %}accent-green{% elif current_ratio < 1.0 %}accent-red{% else %}accent-slate{% endif %}">
-      <div class="metric-label">Current Ratio</div>
+      <div class="metric-label">{{ "Current Ratio" | gloss }}</div>
       <div class="metric-value">{{ "%.2f"|format(current_ratio) }}x</div>
       <div class="metric-sub">Target &ge; 2.0x</div>
     </div>
 
     <div class="metric-card {% if debt_equity < 0.5 %}accent-green{% elif debt_equity > 1.0 %}accent-red{% else %}accent-slate{% endif %}">
-      <div class="metric-label">Debt / Equity</div>
+      <div class="metric-label">{{ "Debt / Equity" | gloss("debt-equity") }}</div>
       <div class="metric-value">{{ "%.2f"|format(debt_equity) }}x</div>
       <div class="metric-sub">Target &lt; 0.5x</div>
     </div>
@@ -659,5 +660,42 @@
     </p>
   </div>
 </div>
+
+<!-- ── Glossary & Formulas ─────────────────────────── -->
+{% if glossary %}
+<div class="report-section" id="glossary">
+  <div class="section-header">
+    <span class="section-title">Glossary &amp; Formulas</span>
+    <span class="section-tag">Reference</span>
+  </div>
+  <p style="font-size:13px; color:var(--slate-500); line-height:1.6; margin-bottom:16px;">
+    Plain-language definitions and formulas for every metric, ratio, and framework
+    term used in this report. Terms marked with a
+    <span class="gloss" data-tip="Hover any dotted term in the report for its definition.">dotted underline</span>
+    elsewhere show their definition on hover.
+  </p>
+  {% for category, terms in glossary.items() %}
+  <div class="gloss-group">
+    <h4>{{ category }}</h4>
+    <div style="border:1px solid var(--slate-200); border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow);">
+      <table class="data-table">
+        <thead><tr><th style="width:22%;">Term</th><th>Definition</th></tr></thead>
+        <tbody>
+        {% for t in terms %}
+          <tr id="glossary-{{ t.slug }}">
+            <td>
+              <span class="gloss-term">{{ t.term }}</span>
+              {% if t.formula %}<div class="gloss-formula">{{ t.formula }}</div>{% endif %}
+            </td>
+            <td style="color:var(--slate-600);">{{ t.definition }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
 
 {% endblock %}

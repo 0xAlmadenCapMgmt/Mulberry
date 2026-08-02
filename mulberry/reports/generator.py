@@ -7,7 +7,9 @@ from typing import Optional
 
 import jinja2
 import pandas as pd
+from markupsafe import Markup
 
+from ..core import glossary
 from ..core.stock_analysis import StockAnalyzer
 from ..visualization.charts import ChartBuilder
 from ..utils.logger import get_logger
@@ -59,6 +61,11 @@ class ReportGenerator:
         self.jinja_env.filters["currency"] = format_currency
         self.jinja_env.filters["percent"] = format_percent
         self.jinja_env.filters["format_large"] = _format_large
+        # {{ "NCAV" | gloss }} → term wrapped in a hover-tooltip span when it
+        # matches a glossary entry, otherwise the text unchanged.
+        self.jinja_env.filters["gloss"] = lambda text, key=None: Markup(
+            glossary.annotate(text, key)
+        )
 
     async def generate_report(
         self,
@@ -326,6 +333,8 @@ class ReportGenerator:
             "dividend_table": dividend_table,
             "momentum_table": momentum_table,
             "dcf_sensitivity_table": dcf_sensitivity_table,
+            # Glossary & formulas (category -> list[GlossaryTerm])
+            "glossary": glossary.by_category(),
         }
 
         template = self.jinja_env.get_template("analysis.html")
@@ -539,13 +548,14 @@ class ReportGenerator:
         if multiples is None:
             return ""
         rows_spec = [
-            ("EV / EBITDA", multiples.ev_ebitda, "Enterprise value to operating cash earnings"),
-            ("EV / Sales", multiples.ev_sales, "Enterprise value to revenue"),
-            ("Price / FCF", multiples.p_fcf, "Market cap to free cash flow"),
+            ("EV / EBITDA", "ev-ebitda", multiples.ev_ebitda, "Enterprise value to operating cash earnings"),
+            ("EV / Sales", "ev-sales", multiples.ev_sales, "Enterprise value to revenue"),
+            ("Price / FCF", "p-fcf", multiples.p_fcf, "Market cap to free cash flow"),
         ]
         rows = ""
-        for label, value, desc in rows_spec:
+        for label, slug, value, desc in rows_spec:
             shown = f"{value:.1f}x" if value and value > 0 else "&mdash;"
+            label = glossary.annotate(label, key=slug)
             rows += (
                 f"<tr><td><strong>{label}</strong></td>"
                 f"<td>{shown}</td>"
@@ -655,6 +665,7 @@ class ReportGenerator:
             rating = composite.lens_ratings.get(key, "")
             verdict = composite.lens_verdicts.get(key, "")
             weight = composite.weights.get(key, 0)
+            label = glossary.annotate(label, key=f"{key}-lens")
 
             if score >= 65:
                 badge_class = "badge-pass"

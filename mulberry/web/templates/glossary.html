@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Mulberry — Glossary{% endblock %}
+{% block content %}
+<h1>Glossary &amp; Formulas</h1>
+<p class="sub">Plain-language definitions and formulas for every metric, ratio, and framework term Mulberry uses. The same reference powers the hover tooltips in each report.</p>
+
+<div class="card">
+  <div class="field" style="margin-bottom:0;">
+    <label for="gloss-search">Filter terms</label>
+    <input type="text" id="gloss-search" placeholder="e.g. NCAV, Sharpe, margin of safety" autofocus>
+    <div class="hint" id="gloss-count"></div>
+  </div>
+</div>
+
+{% for category, terms in glossary.items() %}
+<div class="card gloss-cat" data-category="{{ category|lower }}">
+  <h1 style="font-size:16px;">{{ category }}</h1>
+  <table>
+    <thead><tr><th style="width:26%;">Term</th><th>Definition</th></tr></thead>
+    <tbody>
+      {% for t in terms %}
+      <tr class="gloss-row" id="glossary-{{ t.slug }}"
+          data-search="{{ (t.term ~ ' ' ~ t.aliases|join(' ') ~ ' ' ~ t.definition)|lower }}">
+        <td>
+          <span class="gloss-term">{{ t.term }}</span>
+          {% if t.formula %}<div class="gloss-formula">{{ t.formula }}</div>{% endif %}
+        </td>
+        <td style="color:var(--muted);">{{ t.definition }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endfor %}
+
+<p class="empty" id="gloss-empty" style="display:none;">No terms match your filter.</p>
+
+<script>
+  (function () {
+    var input = document.getElementById('gloss-search');
+    var rows = Array.prototype.slice.call(document.querySelectorAll('.gloss-row'));
+    var cats = Array.prototype.slice.call(document.querySelectorAll('.gloss-cat'));
+    var empty = document.getElementById('gloss-empty');
+    var count = document.getElementById('gloss-count');
+    var total = rows.length;
+
+    function apply() {
+      var q = input.value.trim().toLowerCase();
+      var shown = 0;
+      rows.forEach(function (r) {
+        var match = !q || r.getAttribute('data-search').indexOf(q) !== -1;
+        r.style.display = match ? '' : 'none';
+        if (match) shown++;
+      });
+      cats.forEach(function (c) {
+        var any = c.querySelector('.gloss-row:not([style*="display: none"])');
+        c.style.display = any ? '' : 'none';
+      });
+      empty.style.display = shown ? 'none' : '';
+      count.textContent = q ? (shown + ' of ' + total + ' terms') : (total + ' terms');
+    }
+
+    input.addEventListener('input', apply);
+    apply();
+  })();
+</script>
+{% endblock %}

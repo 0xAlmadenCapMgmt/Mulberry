@@ -64,6 +64,26 @@
     .pill.screen { background: #dcfce7; color: #15803d; }
     .empty { color: var(--muted); font-size: 14px; padding: 12px 0; }
     footer { text-align: center; color: var(--muted); font-size: 12px; padding: 24px; }
+    .gloss {
+      border-bottom: 1px dotted currentColor; cursor: help; position: relative; outline: none;
+    }
+    .gloss::after {
+      content: attr(data-tip); position: absolute; left: 0; top: calc(100% + 6px); z-index: 300;
+      width: max-content; max-width: 280px; background: var(--ink); color: var(--card);
+      font-size: 12px; font-weight: 400; line-height: 1.55; text-align: left;
+      padding: 8px 11px; border-radius: 8px; box-shadow: 0 6px 20px rgba(15,23,42,.22);
+      opacity: 0; visibility: hidden; transition: opacity .12s ease; pointer-events: none;
+    }
+    .gloss:hover::after, .gloss:focus::after { opacity: 1; visibility: visible; }
+    .gloss-group { margin-bottom: 8px; }
+    .gloss-group summary {
+      font-weight: 700; font-size: 15px; cursor: pointer; padding: 10px 0; color: var(--accent-ink);
+    }
+    .gloss-term { font-weight: 700; color: var(--ink); }
+    .gloss-formula {
+      font-family: 'SFMono-Regular', ui-monospace, monospace; font-size: 12px; color: var(--muted);
+      background: var(--bg); padding: 2px 6px; border-radius: 4px; display: inline-block; margin-top: 4px;
+    }
     @media (prefers-color-scheme: dark) {
       :root { --bg:#0f172a; --card:#1e293b; --ink:#e2e8f0; --muted:#94a3b8; --line:#334155; --accent:#a78bfa; --accent-ink:#c4b5fd; }
       input, select, textarea { background:#0f172a; }
@@ -77,7 +97,9 @@
     <nav>
       <a href="/">Analyze</a>
       <a href="/screen">Screen</a>
+      <a href="/ask">Ask</a>
       <a href="/reports">History</a>
+      <a href="/glossary">Glossary</a>
     </nav>
   </header>
   <main>

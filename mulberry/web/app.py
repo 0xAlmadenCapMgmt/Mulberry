@@ -20,9 +20,12 @@ from pathlib import Path
 from typing import List, Optional
 
 from fastapi import FastAPI, Form, HTTPException, Request
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from fastapi.responses import (
+    FileResponse, HTMLResponse, JSONResponse, RedirectResponse,
+)
 from fastapi.templating import Jinja2Templates
 
+from ..core import glossary
 from ..core.composite import CompositeScorer
 from ..reports.generator import ReportGenerator
 from ..reports.screen import ScreenReportGenerator
@@ -78,11 +81,25 @@ def _recent_reports(limit: int = 25) -> List[dict]:
 def create_app(
     report_generator: Optional[ReportGenerator] = None,
     screen_generator_factory=None,
+    agent_factory=None,
 ) -> FastAPI:
-    """Build the FastAPI app. Generators are injectable for testing."""
+    """Build the FastAPI app. Generators are injectable for testing.
+
+    ``agent_factory(symbol, profile) -> AnalysisAgent`` is injectable so the
+    chat endpoint can be tested offline; by default it computes the analysis and
+    builds a live agent.
+    """
     app = FastAPI(title="Mulberry", docs_url=None, redoc_url=None)
     templates = Jinja2Templates(directory=str(_WEB_DIR / "templates"))
     profiles = list(CompositeScorer.PROFILES)
+
+    async def _make_agent(symbol: str, profile: str):
+        if agent_factory is not None:
+            return agent_factory(symbol, profile)
+        from ..core.stock_analysis import StockAnalyzer
+        from ..ai.agent import AnalysisAgent
+        analysis = await StockAnalyzer(profile=profile).analyze(symbol)
+        return AnalysisAgent(analysis=analysis)
 
     def _make_report_generator(profile: str) -> ReportGenerator:
         if report_generator is not None:
@@ -158,6 +175,65 @@ def create_app(
             return _error_page(templates, request, f"Screen failed: {e}", 502)
 
         return RedirectResponse(url=f"/reports/{Path(path).name}", status_code=303)
+
+    @app.get("/ask", response_class=HTMLResponse)
+    async def ask_page(request: Request):
+        symbol = (request.query_params.get("symbol") or "").upper()
+        return templates.TemplateResponse(
+            request=request, name="ask.html",
+            context={"profiles": profiles, "symbol": symbol},
+        )
+
+    @app.post("/ask")
+    async def ask_api(request: Request):
+        import asyncio
+
+        try:
+            body = await request.json()
+        except Exception:
+            return JSONResponse({"error": "expected a JSON body"}, status_code=400)
+
+        symbol = str(body.get("symbol", "")).strip()
+        question = str(body.get("question", "")).strip()
+        profile = str(body.get("profile", "balanced"))
+        history = body.get("history") or []
+
+        ok, err = validate_ticker(symbol)
+        if not ok or profile not in CompositeScorer.PROFILES:
+            return JSONResponse({"error": err or "invalid profile"}, status_code=400)
+        if not question:
+            return JSONResponse({"error": "empty question"}, status_code=400)
+        # Only keep well-formed prior turns.
+        history = [
+            {"role": t["role"], "content": t["content"]}
+            for t in history
+            if isinstance(t, dict) and t.get("role") in ("user", "assistant")
+            and isinstance(t.get("content"), str)
+        ]
+
+        symbol = normalize_ticker(symbol)
+        try:
+            agent = await _make_agent(symbol, profile)
+            reply = await asyncio.to_thread(agent.ask, question, history)
+        except Exception as e:
+            logger.error(f"Web ask failed for {symbol}: {e}", exc_info=True)
+            return JSONResponse(
+                {"error": f"Could not analyze {symbol}: {e}"}, status_code=502
+            )
+
+        return JSONResponse({
+            "answer": reply.answer,
+            "history": reply.history,
+            "tools_used": reply.tools_used,
+            "symbol": symbol,
+        })
+
+    @app.get("/glossary", response_class=HTMLResponse)
+    async def glossary_page(request: Request):
+        return templates.TemplateResponse(
+            request=request, name="glossary.html",
+            context={"glossary": glossary.by_category()},
+        )
 
     @app.get("/reports", response_class=HTMLResponse)
     async def reports(request: Request):

@@ -46,9 +46,16 @@ HOLD — quality alone never justifies buying at any price.
 - **Investment Thesis (AI-generated)** — a narrative thesis, bull/bear case, and
   risks synthesized from the metrics and filing text (optional; see below)
 - Financial-health scorecard, per-lens detail tables, and a data-confidence badge
+- **Glossary & Formulas** — plain-language definitions and formulas for every
+  term, with hover tooltips on metrics throughout the report (also browsable at
+  `/glossary` in the web UI)
+- **Ask the analysis** — a grounded, tool-using assistant (`ask` on the CLI, a
+  `/ask` chat page on the web) that answers questions about a report by looking
+  up its computed metrics, drilling into a lens, defining a term, or comparing
+  another ticker (optional; needs an `ANTHROPIC_API_KEY`)
 
-Filings and the AI thesis are **context only** — they never change the numeric
-scores or the recommendation.
+Filings, the AI thesis, and the assistant are **context only** — they never
+change the numeric scores or the recommendation.
 
 ## Install
 
@@ -68,7 +75,7 @@ Core data (Yahoo Finance + SEC EDGAR) needs **no API keys**.
 ## Usage
 
 ```bash
-# Web UI — ticker search, screener, and report history at http://127.0.0.1:8000
+# Web UI — analyze, screen, ask, glossary, and report history at http://127.0.0.1:8000
 mulberry serve
 
 # Single-name report (open in browser)
@@ -79,6 +86,10 @@ mulberry analyze NVDA --no-filings -b        # skip the SEC fetch
 # Rank a universe → HTML + CSV
 mulberry screen AAPL MSFT KO PLTR -b
 mulberry screen --universe watchlist.txt --profile deep_value -b
+
+# Ask questions about an analysis (grounded, tool-using assistant; needs ANTHROPIC_API_KEY)
+mulberry ask AAPL "why is the composite only 60?"
+mulberry ask KO                              # interactive session
 
 # Maintenance
 mulberry info                                # config + paths

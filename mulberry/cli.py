@@ -60,7 +60,7 @@ def run_async(coro):
 
 
 @click.group()
-@click.version_option(version='0.9.0', prog_name='Mulberry')
+@click.version_option(version='0.11.0', prog_name='Mulberry')
 def cli():
     """
     Mulberry — Multi-Framework Stock Analysis
